@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  @keyframes progress-slide {
+    0%   { transform: translateX(-150%); }
+    100% { transform: translateX(600%); }
+  }
+  .animate-progress-slide {
+    animation: progress-slide 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@layer base {
+  :root {
+    --risk-critical: #dc2626;
+    --risk-high: #ea580c;
+    --risk-medium: #ca8a04;
+    --risk-low: #16a34a;
+    --risk-minimal: #2563eb;
+    --risk-unknown: #6b7280;
+
+    --verdict-use: #16a34a;
+    --verdict-caution: #ca8a04;
+    --verdict-avoid: #dc2626;
+    --verdict-replace-soon: #ea580c;
+  }
+  
+  body {
+    @apply bg-zinc-950 text-zinc-100;
+  }
+}
+
+@media print {
+  header, .settings-drawer, button, nav {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .bg-zinc-900, .bg-zinc-950, .bg-zinc-800 {
+    background: transparent !important;
+    color: black !important;
+    border-color: #ddd !important;
+  }
+  .text-zinc-400, .text-zinc-500 {
+    color: #555 !important;
+  }
+  .text-zinc-100, .text-zinc-300 {
+    color: black !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
