@@ -17,7 +17,7 @@ export function LandingPage() {
         </h1>
         
         <p className="text-lg text-zinc-400 max-w-2xl mx-auto mb-12">
-          Instantly evaluate npm, PyPI, and Go packages. TrustGuard AI combines real-time OSV vulnerability databases with deep AI threat modeling to keep your architecture secure.
+          Instantly evaluate npm, PyPI, uv, pip, Go, Rust, Maven, and more packages. TrustGuard AI combines real-time OSV vulnerability databases with deep AI threat modeling to keep your architecture secure.
         </p>
 
         {/* Search Bar is embedded here */}
@@ -119,6 +119,89 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Pricing Transparency Section */}
+<section className="w-full max-w-5xl mx-auto py-20 px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-bold text-zinc-100 mb-4">Transparent AI Costs</h2>
+    <p className="text-zinc-400 max-w-2xl mx-auto">
+      TrustGuard AI uses your own API key — you pay your provider directly. No markup, no subscription.
+      Here are typical costs for two common scenarios.
+    </p>
+  </div>
+
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    {/* Single Repo Scan */}
+    <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+          <Search className="w-4 h-4 text-indigo-400" />
+        </div>
+        <h3 className="text-lg font-bold text-zinc-100">Single Package / Repo Scan</h3>
+      </div>
+      <p className="text-zinc-500 text-xs mb-4 leading-relaxed">
+        Typical: ~8,000 input + 2,500 output tokens. Includes source code fetch, OSV scan, full AI threat analysis.
+        Monorepo (5 chunks) ≈ 5× more input tokens.
+      </p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-zinc-800">
+            <th className="text-left pb-2 text-zinc-500 font-medium text-xs">Model</th>
+            <th className="text-right pb-2 text-zinc-500 font-medium text-xs">Est. Cost</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-800/60">
+          <tr><td className="py-2 text-zinc-300">Ollama (local)</td><td className="py-2 text-right text-green-400 font-mono text-xs font-bold">Free</td></tr>
+          <tr><td className="py-2 text-zinc-300">Gemini 2.5 Flash</td><td className="py-2 text-right text-green-400 font-mono text-xs">~$0.003</td></tr>
+          <tr><td className="py-2 text-zinc-300">GPT-4o-mini</td><td className="py-2 text-right text-green-400 font-mono text-xs">~$0.003</td></tr>
+          <tr><td className="py-2 text-zinc-300">Groq Llama 3.3 70B</td><td className="py-2 text-right text-zinc-300 font-mono text-xs">~$0.007</td></tr>
+          <tr><td className="py-2 text-zinc-300">Mistral Large</td><td className="py-2 text-right text-zinc-300 font-mono text-xs">~$0.025</td></tr>
+          <tr><td className="py-2 text-zinc-300">GPT-4o</td><td className="py-2 text-right text-zinc-300 font-mono text-xs">~$0.045</td></tr>
+          <tr><td className="py-2 text-zinc-300">Claude Sonnet 4.6</td><td className="py-2 text-right text-amber-400 font-mono text-xs">~$0.062</td></tr>
+          <tr><td className="py-2 text-zinc-300">Claude Opus 4.7</td><td className="py-2 text-right text-red-400 font-mono text-xs">~$0.31</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    {/* Batch 50 deps */}
+    <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+          <FileText className="w-4 h-4 text-cyan-400" />
+        </div>
+        <h3 className="text-lg font-bold text-zinc-100">Batch Scan — 50 Dependencies</h3>
+      </div>
+      <p className="text-zinc-500 text-xs mb-4 leading-relaxed">
+        Typical: ~65,000 input + 75,000 output tokens total. Full AI report per package — executive summary,
+        STRIDE threat model, security findings, remediation, alternatives.
+      </p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-zinc-800">
+            <th className="text-left pb-2 text-zinc-500 font-medium text-xs">Model</th>
+            <th className="text-right pb-2 text-zinc-500 font-medium text-xs">Est. Cost</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-800/60">
+          <tr><td className="py-2 text-zinc-300">Ollama (local)</td><td className="py-2 text-right text-green-400 font-mono text-xs font-bold">Free</td></tr>
+          <tr><td className="py-2 text-zinc-300">Gemini 2.5 Flash</td><td className="py-2 text-right text-green-400 font-mono text-xs">~$0.055</td></tr>
+          <tr><td className="py-2 text-zinc-300">GPT-4o-mini</td><td className="py-2 text-right text-green-400 font-mono text-xs">~$0.055</td></tr>
+          <tr><td className="py-2 text-zinc-300">Groq Llama 3.3 70B</td><td className="py-2 text-right text-zinc-300 font-mono text-xs">~$0.097</td></tr>
+          <tr><td className="py-2 text-zinc-300">Mistral Large</td><td className="py-2 text-right text-zinc-300 font-mono text-xs">~$0.58</td></tr>
+          <tr><td className="py-2 text-zinc-300">GPT-4o</td><td className="py-2 text-right text-amber-400 font-mono text-xs">~$0.91</td></tr>
+          <tr><td className="py-2 text-zinc-300">Claude Sonnet 4.6</td><td className="py-2 text-right text-amber-400 font-mono text-xs">~$1.32</td></tr>
+          <tr><td className="py-2 text-zinc-300">Claude Opus 4.7</td><td className="py-2 text-right text-red-400 font-mono text-xs">~$6.60</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <p className="text-center text-zinc-600 text-xs mt-6">
+    Estimates based on typical usage. Actual cost depends on package complexity, source code size, and model response length. Token counts visible in every report.
+  </p>
+</section>
 
       {/* How to Use Section */}
       <section className="w-full bg-zinc-900/30 border-t border-zinc-800/50 py-20">

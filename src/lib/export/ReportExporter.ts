@@ -1,18 +1,74 @@
 import type { PackageAnalysisData, AnalysisReport, TokenUsage } from '../../types/analysis';
 import { formatCost } from '../llm/tokenPricing';
+import { formatTimestamp, formatDuration } from '../utils/timestamps';
+import type { TimezoneId } from '../utils/timestamps';
+import { POPULARITY_LABEL_DESCRIPTIONS } from '../constants/popularityThresholds';
 
 export class ReportExporter {
 
   static generateMarkdown(
     data: Partial<PackageAnalysisData>,
     report: Partial<AnalysisReport> | null,
-    tokenUsage?: TokenUsage | null
+    tokenUsage?: TokenUsage | null,
+    options?: { timezone?: TimezoneId }
   ): string {
-    const d = new Date().toISOString().split('T')[0];
+    const tz: TimezoneId = options?.timezone || 'IST';
+    const d = data.reportGeneratedAt
+      ? formatTimestamp(data.reportGeneratedAt, tz)
+      : new Date().toISOString().split('T')[0];
     let md = `# TrustGuard AI Security Report: ${data.packageName}@${data.version || 'latest'}\n\n`;
+
+    // Data Completeness Warning
+    if (data.dataCompleteness && data.dataCompleteness !== 'FULL') {
+      const msg = data.dataCompleteness === 'PARTIAL'
+        ? 'Some data sources were unavailable. Scores may be less accurate — GitHub or download stats could not be retrieved.'
+        : data.dataCompleteness === 'METADATA_ONLY'
+        ? 'Only registry metadata was available. No GitHub activity data or download statistics could be retrieved.'
+        : 'Could not retrieve meaningful data for this package. Verify the package name and ecosystem are correct.';
+      const icon = data.dataCompleteness === 'NONE' ? '❌' : data.dataCompleteness === 'METADATA_ONLY' ? '📋' : '⚠️';
+      const label = data.dataCompleteness === 'NONE' ? 'NO DATA' : data.dataCompleteness === 'METADATA_ONLY' ? 'METADATA ONLY' : 'PARTIAL DATA';
+      md += `> ${icon} **${label}**: ${msg}\n\n`;
+    }
+
+    // Deprecated/Unmaintained Warning
+    if (data.isDeprecated) {
+      md += `> 🚫 **DEPRECATED PACKAGE**: ${data.deprecationMessage || 'This package has been marked as deprecated.'}\n\n`;
+    } else if (data.isUnmaintained) {
+      md += `> ⚠️ **UNMAINTAINED PACKAGE**: No commits for 3+ years. May not receive security updates.\n\n`;
+    }
+
+    // Repository attribution
+    if (data.resolvedGithubUrl || data.resolvedRegistryUrl) {
+      md += `## Source Repository\n\n`;
+      if (data.resolverConfidence) {
+        const confLabels: Record<string, string> = {
+          VERIFIED: '✓ VERIFIED', HIGH: '↑ HIGH', MEDIUM: '~ MEDIUM', LOW: '↓ LOW', UNRESOLVED: '? UNRESOLVED',
+        };
+        md += `**Source Confidence:** ${confLabels[data.resolverConfidence] || data.resolverConfidence}  \n`;
+      }
+      if (data.resolvedGithubUrl) {
+        md += `**Repository:** [${data.resolvedGithubUrl}](${data.resolvedGithubUrl})  \n`;
+        if (data.resolvedVia) md += `**Resolved via:** ${data.resolvedVia.replace(/_/g, ' ')}  \n`;
+      }
+      // Version-specific release link
+      if (data.resolvedGithubUrl && data.version && data.version !== 'latest') {
+        const releaseUrl = data.resolvedGitRef
+          ? `${data.resolvedGithubUrl}/releases/tag/${data.resolvedGitRef}`
+          : `${data.resolvedGithubUrl}/releases`;
+        const releaseLabel = data.resolvedGitRef ? `release/${data.resolvedGitRef}` : `releases (v${data.version})`;
+        md += `**Analyzed version:** [${releaseLabel}](${releaseUrl})  \n`;
+      }
+      if (data.resolvedRegistryUrl) md += `**Registry URL:** [\`${data.resolvedRegistryUrl}\`](${data.resolvedRegistryUrl})  \n`;
+      md += `> ⓘ Verify this is the correct repository — wrong repo matches can happen when package names are ambiguous.\n\n`;
+    }
+
     md += `**Date:** ${d}  \n`;
     md += `**Ecosystem:** ${data.ecosystem || 'Unknown'}  \n`;
     if (data.popularityLabel) md += `**Popularity:** ${data.popularityLabel}  \n`;
+    if (data.scanStartedAt) md += `**Scan Started:** ${formatTimestamp(data.scanStartedAt, tz)}  \n`;
+    if (data.scanStartedAt && data.scanEndedAt) md += `**Scan Duration:** ${formatDuration(data.scanStartedAt, data.scanEndedAt)}  \n`;
+    if (data.commercialModel && data.commercialModel !== 'unknown') md += `**Commercial Model:** ${data.commercialModel}  \n`;
+    if (data.commercialUseClassification && data.commercialUseClassification !== 'unknown') md += `**Commercial Use:** ${data.commercialUseClassification}  \n`;
     if (data.github?.latestRelease) md += `**Latest Release:** ${data.github.latestRelease}  \n`;
     md += `**Risk Score:** ${data.riskScore ?? 'N/A'}/100  \n`;
     md += `**Trust Score:** ${data.trustScore ?? 'N/A'}/100  \n`;
@@ -158,10 +214,24 @@ export class ReportExporter {
     if (!data.vulnerabilities || data.vulnerabilities.length === 0) {
       md += `No known vulnerabilities found.\n\n`;
     } else {
-      md += `| ID | Severity | Title | Fixed In |\n|---|---|---|---|\n`;
-      data.vulnerabilities.forEach(v => {
-        md += `| [${v.id}](https://osv.dev/vulnerability/${v.id}) | ${v.severity} | ${v.title} | ${v.fixedInVersion} |\n`;
-      });
+      const hasApplicability = data.vulnerabilities.some(v => v.isApplicable !== undefined);
+      const fixedCount = hasApplicability ? data.vulnerabilities.filter(v => v.isApplicable === false).length : 0;
+      const applicableCount = data.vulnerabilities.length - fixedCount;
+      if (hasApplicability && fixedCount > 0) {
+        md += `> ${data.vulnerabilities.length} total · ${applicableCount} applicable to your version · ${fixedCount} already fixed\n\n`;
+      }
+      if (hasApplicability) {
+        md += `| ID | Severity | Title | Fixed In | Status |\n|---|---|---|---|---|\n`;
+        data.vulnerabilities.forEach(v => {
+          const status = v.isApplicable === false ? '✓ Already Fixed' : v.isApplicable === true ? '⚠ Applicable' : '—';
+          md += `| [${v.id}](https://osv.dev/vulnerability/${v.id}) | ${v.severity} | ${v.title} | ${v.fixedInVersion} | ${status} |\n`;
+        });
+      } else {
+        md += `| ID | Severity | Title | Fixed In |\n|---|---|---|---|\n`;
+        data.vulnerabilities.forEach(v => {
+          md += `| [${v.id}](https://osv.dev/vulnerability/${v.id}) | ${v.severity} | ${v.title} | ${v.fixedInVersion} |\n`;
+        });
+      }
       md += `\n`;
     }
 
@@ -197,6 +267,53 @@ export class ReportExporter {
       md += `| **Estimated cost** | **${formatCost(tokenUsage.estimatedCostUSD)}** |\n`;
       md += `| Counts source | ${tokenUsage.isEstimated ? 'Estimated (~4 chars/token)' : 'Reported by API'} |\n\n`;
     }
+
+    // Technical Appendix
+    md += `---\n\n## 📖 Appendix — Technical Reference\n\n`;
+
+    md += `### Popularity Labels\n\n`;
+    md += `| Label | Description |\n|---|---|\n`;
+    const popLabels = ['Niche', 'Small community', 'Established', 'Popular', 'Industry Standard'];
+    popLabels.forEach(label => {
+      const desc = POPULARITY_LABEL_DESCRIPTIONS[label] || '';
+      md += `| **${label}** | ${desc} |\n`;
+    });
+    md += `\n`;
+
+    md += `### License Quick Reference\n\n`;
+    md += `| SPDX ID | Type | Notes |\n|---|---|---|\n`;
+    const licRef = [
+      ['MIT', 'Permissive', 'Use freely. Commercial OK.'],
+      ['Apache-2.0', 'Permissive', 'Like MIT + explicit patent grant.'],
+      ['BSD-3-Clause', 'Permissive', 'Attribution required. No endorsement.'],
+      ['ISC', 'Permissive', 'Equivalent to MIT. Common in npm.'],
+      ['GPL-3.0', 'Copyleft', 'Source must be open if distributed.'],
+      ['AGPL-3.0', 'Strong Copyleft', 'GPL + network copyleft (SaaS).'],
+      ['LGPL-3.0', 'Weak Copyleft', 'Library copyleft — linking allowed.'],
+      ['MPL-2.0', 'Weak Copyleft', 'File-level copyleft.'],
+      ['SSPL-1.0', 'Source Available', 'Highly restrictive for SaaS.'],
+      ['CC0-1.0', 'Public Domain', 'No rights reserved.'],
+    ];
+    licRef.forEach(([id, type, notes]) => { md += `| \`${id}\` | ${type} | ${notes} |\n`; });
+    md += `\n`;
+
+    md += `### Risk Score Methodology\n\n`;
+    md += `Risk Score = Vulnerabilities(0–40) + Maintenance(0–25) + Archived(+20) + OpenSSF Scorecard(0–20) + License(0–10) + Transitive CVEs(0–5).\n\n`;
+    md += `Higher score = more risk. 0 = no detected risks.\n\n`;
+
+    md += `### Trust Score Methodology\n\n`;
+    md += `Starts at 100. Deductions for risk factors. Bonuses for: >1M downloads (+10), >10k stars (+8), >100 contributors (+5), recent release (+5), signed releases (+5).\n\n`;
+
+    md += `### Data Sources\n\n`;
+    md += `- **OSV.dev** — CVE and GHSA vulnerability advisories (version-specific queries)\n`;
+    md += `- **GitHub API** — repository stats, commits, license, archival status\n`;
+    md += `- **npm Registry** — download counts, version history\n`;
+    md += `- **PyPI API** — Python package metadata, version publish dates\n`;
+    md += `- **pypistats.org** — Python package download statistics\n`;
+    md += `- **deps.dev (Google)** — package source resolution (primary GitHub URL lookup)\n`;
+    md += `- **crates.io** — Rust crate metadata\n`;
+    md += `- **pub.dev** — Dart/Flutter package metadata\n`;
+    md += `- **OpenSSF Scorecard** — security hygiene scores\n\n`;
 
     md += `---\n*Generated by TrustGuard AI. Automated analysis — verify critical findings independently.*\n`;
     md += `*⚠️ Misuse of security information obtained through TrustGuard AI is entirely the responsibility of the user.*\n`;

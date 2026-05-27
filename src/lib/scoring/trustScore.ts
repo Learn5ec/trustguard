@@ -21,8 +21,14 @@ export function calculateTrustScore(data: Partial<PackageAnalysisData>): { score
   // ── Community adoption ────────────────────────────────────────────────────
   if (!isGitHubOnly) {
     // npm/pypi: use weekly downloads
-    const weeklyDownloads = data.packageStats?.weeklyDownloads ?? 0;
-    if (weeklyDownloads < 100) {
+    // IMPORTANT: Guard against undefined coercion — undefined means data was unavailable,
+    // not that the package has 0 downloads. Apply a small "incomplete data" penalty instead.
+    const weeklyDownloads = data.packageStats?.weeklyDownloads;
+    if (weeklyDownloads === undefined || weeklyDownloads === null) {
+      // Download stats are unavailable (e.g. npm dependents API or pypistats.org failed)
+      score -= 5;
+      breakdown.push({ factor: 'Download Data Unavailable', impact: -5, description: 'Could not retrieve download statistics — applying conservative incomplete-data deduction.' });
+    } else if (weeklyDownloads < 100) {
       score -= 20;
       breakdown.push({ factor: 'Low Adoption', impact: -20, description: `Only ~${weeklyDownloads.toLocaleString()} weekly downloads — very little battle-testing.` });
     } else if (weeklyDownloads < 5000) {
@@ -96,13 +102,14 @@ export function calculateTrustScore(data: Partial<PackageAnalysisData>): { score
   }
 
   // ── Recent critical CVE ───────────────────────────────────────────────────
+  // Only flag recent critical CVEs that are actually applicable to the installed version
   if (data.vulnerabilities) {
     const recentCritical = data.vulnerabilities.some(
-      (v) => v.severity === 'CRITICAL' && daysBetween(new Date(v.publishedDate), new Date()) < 90
+      (v) => v.isApplicable !== false && v.severity === 'CRITICAL' && daysBetween(new Date(v.publishedDate), new Date()) < 90
     );
     if (recentCritical) {
       score -= 15;
-      breakdown.push({ factor: 'Recent Critical CVE', impact: -15, description: 'A critical vulnerability was disclosed in the last 90 days — patch urgently.' });
+      breakdown.push({ factor: 'Recent Critical CVE', impact: -15, description: 'A critical vulnerability applicable to your version was disclosed in the last 90 days — patch urgently.' });
     }
   }
 

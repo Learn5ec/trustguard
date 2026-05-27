@@ -12,179 +12,12 @@ import { calculateTrustScore } from '../lib/scoring/trustScore';
 import { calculateCost } from '../lib/llm/tokenPricing';
 import type { SourceChunk } from '../lib/fetchers/types';
 import type { Ecosystem } from '../types/analysis';
-
-// ── Finding deduplication ─────────────────────────────────────────────────────
-
-const SEVERITY_RANK: Record<string, number> = {
-  CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4
-};
-
-/**
- * Merge findings gathered across multiple chunk passes.
- * Two findings are considered duplicates when they share the same category
- * and the first 40 characters of their lowercased title match.
- * When duplicates exist we keep the one with the higher severity and, as a
- * tiebreaker, the one that is `confirmed`.
- */
-function deduplicateFindings(findings: SecurityFinding[]): SecurityFinding[] {
-  const map = new Map<string, SecurityFinding>();
-  for (const f of findings) {
-    const key = `${f.category}::${f.title.toLowerCase().slice(0, 40)}`;
-    const existing = map.get(key);
-    if (!existing) {
-      map.set(key, f);
-    } else {
-      const existingRank = SEVERITY_RANK[existing.severity] ?? 4;
-      const newRank = SEVERITY_RANK[f.severity] ?? 4;
-      // Replace if new finding has higher severity, or same severity but confirmed
-      if (newRank < existingRank || (newRank === existingRank && f.confirmed && !existing.confirmed)) {
-        map.set(key, f);
-      }
-    }
-  }
-  return Array.from(map.values());
-}
-
-// ── LLM JSON utilities ───────────────────────────────────────────────────────
-
-/**
- * Strip markdown code fences that some LLM providers wrap around JSON responses
- * despite being instructed not to.
- */
-function stripFences(text: string): string {
-  return text
-    .replace(/^```(?:json)?\s*/im, '')
-    .replace(/\s*```\s*$/im, '')
-    .trim();
-}
-
-/**
- * Extract the first balanced JSON *object* `{...}` from arbitrary text using
- * bracket counting.  More reliable than a greedy `\{[\s\S]*\}` regex, which
- * over-matches when the LLM adds explanatory text after the closing brace.
- */
-function extractFirstJsonObject(text: string): string | null {
-  const start = text.indexOf('{');
-  if (start === -1) return null;
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (escape)              { escape = false; continue; }
-    if (ch === '\\' && inString) { escape = true; continue; }
-    if (ch === '"')          { inString = !inString; continue; }
-    if (inString)            { continue; }
-    if (ch === '{')          { depth++; }
-    else if (ch === '}')     { depth--; if (depth === 0) return text.slice(start, i + 1); }
-  }
-  return null; // unbalanced / not found
-}
-
-/**
- * Extract the first balanced JSON *array* `[...]` starting at `startPos`.
- */
-function extractBalancedArray(text: string, startPos: number): string | null {
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = startPos; i < text.length; i++) {
-    const ch = text[i];
-    if (escape)              { escape = false; continue; }
-    if (ch === '\\' && inString) { escape = true; continue; }
-    if (ch === '"')          { inString = !inString; continue; }
-    if (inString)            { continue; }
-    if (ch === '[')          { depth++; }
-    else if (ch === ']')     { depth--; if (depth === 0) return text.slice(startPos, i + 1); }
-  }
-  // If the array was never closed (truncated response), return everything we have
-  return depth > 0 ? text.slice(startPos) + ']'.repeat(depth) : null;
-}
-
-/**
- * Apply lightweight text-level repair to LLM-produced JSON:
- *   • Trailing commas before } or ]
- */
-function repairJson(raw: string): string {
-  return raw.replace(/,(\s*[}\]])/g, '$1');
-}
-
-/**
- * Extract individual JSON objects from array text, parsing each independently.
- * Used as last-resort when the array itself cannot be parsed as a whole.
- */
-function extractObjectsFromArrayText(arrayText: string): any[] {
-  const results: any[] = [];
-  let i = 0;
-  while (i < arrayText.length) {
-    const nextBrace = arrayText.indexOf('{', i);
-    if (nextBrace === -1) break;
-    const objStr = extractFirstJsonObject(arrayText.slice(nextBrace));
-    if (!objStr) { i = nextBrace + 1; continue; }
-    try { results.push(JSON.parse(repairJson(objStr))); } catch { /* skip malformed */ }
-    i = nextBrace + objStr.length;
-  }
-  return results;
-}
-
-/**
- * Robust 3-tier extraction of `securityFindings` from an LLM response that may:
- *   - Be wrapped in markdown code fences
- *   - Contain trailing commas
- *   - Have unescaped quotes / truncated JSON that breaks full-document parse
- *
- * Tier 1: standard JSON.parse of the top-level object
- * Tier 2: repairJson then parse
- * Tier 3: locate the securityFindings array via regex, extract balanced brackets,
- *          try array parse, fall back to per-object extraction
- */
-function extractFindingsFromResponse(text: string): SecurityFinding[] {
-  const clean = stripFences(text);
-
-  // Tier 1 & 2 — try parsing the full top-level object
-  const objStr = extractFirstJsonObject(clean);
-  if (objStr) {
-    for (const candidate of [objStr, repairJson(objStr)]) {
-      try {
-        const parsed = JSON.parse(candidate);
-        if (Array.isArray(parsed.securityFindings)) return parsed.securityFindings;
-      } catch { /* fall through */ }
-    }
-  }
-
-  // Tier 3 — find the securityFindings array and extract it independently
-  const arrayKeyMatch = clean.match(/"securityFindings"\s*:\s*\[/);
-  if (arrayKeyMatch && arrayKeyMatch.index !== undefined) {
-    const bracketPos = clean.indexOf('[', arrayKeyMatch.index);
-    if (bracketPos !== -1) {
-      const arrayStr = extractBalancedArray(clean, bracketPos);
-      if (arrayStr) {
-        for (const candidate of [arrayStr, repairJson(arrayStr)]) {
-          try {
-            const arr = JSON.parse(candidate);
-            if (Array.isArray(arr)) return arr;
-          } catch { /* fall through */ }
-        }
-        // Last resort: parse each object individually
-        return extractObjectsFromArrayText(arrayStr);
-      }
-    }
-  }
-
-  return [];
-}
-
-/**
- * Parse a full LLM response as a JSON object (for synthesis / single-pass).
- * Returns the parsed object or throws if all attempts fail.
- */
-function parseFullJsonResponse(text: string): any {
-  const clean = stripFences(text);
-  const objStr = extractFirstJsonObject(clean);
-  if (!objStr) throw new Error('No JSON object found in response');
-  try { return JSON.parse(objStr); } catch { /* fall through */ }
-  return JSON.parse(repairJson(objStr)); // throws if still broken
-}
+import {
+  deduplicateFindings,
+  extractFindingsFromResponse,
+  parseFullJsonResponse,
+} from '../lib/analysis/jsonUtils';
+import { now } from '../lib/utils/timestamps';
 
 // ── Analysis progress ─────────────────────────────────────────────────────────
 
@@ -273,6 +106,8 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
       analysisProgress: { phase: 'fetching', scanStep: 0, totalChunks: 0, chunkLabel: '' },
     });
 
+    const scanStartedAt = now();
+
     // ── Step 1: Fetch registry / GitHub metadata ──────────────────────────────
     get().addStatusMessage('Fetching vulnerability data from OSV.dev and GitHub...');
 
@@ -283,12 +118,15 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
       fetchedData = await analyzePackage(packageName, version, ecosystem as Ecosystem);
 
       // ── Source code fetching ────────────────────────────────────────────────
-      if (fetchedData.ecosystem === 'github' && fetchedData.github?.url) {
-        get().addStatusMessage('Fetching source code for Secure Code Review Agent...');
-        sourceChunks = await fetchGitHubRepoSourceChunks(fetchedData.github.url);
+      if ((fetchedData.ecosystem === 'github' || fetchedData.resolvedVia === 'registry_lookup') && (fetchedData.resolvedGithubUrl || fetchedData.github?.url)) {
+        const effectiveUrl = fetchedData.resolvedGithubUrl || fetchedData.github?.url;
+        const resolvedVersion = fetchedData.version && fetchedData.version !== 'latest' ? fetchedData.version : undefined;
+        get().addStatusMessage(`Fetching source code for Secure Code Review Agent${resolvedVersion ? ` (version ${resolvedVersion})` : ''}...`);
+        const sourceResult = await fetchGitHubRepoSourceChunks(effectiveUrl!, resolvedVersion);
+        sourceChunks = sourceResult?.chunks ?? null;
+        if (sourceResult?.resolvedRef) fetchedData.resolvedGitRef = sourceResult.resolvedRef;
 
         if (sourceChunks && sourceChunks.length > 0) {
-          // Build the flat sourceCode string for exports / dep-scanner
           fetchedData.sourceCode = sourceChunks.length === 1
             ? sourceChunks[0].content
             : sourceChunks.map(c => `=== SOURCE SECTION: ${c.label} ===\n${c.content}`).join('\n\n');
@@ -337,6 +175,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
 
     const enrichedData: Partial<PackageAnalysisData> = {
       ...fetchedData,
+      scanStartedAt,
       riskScore:          riskResult.score,
       riskScoreBreakdown: riskResult.breakdown,
       trustScore:         trustResult.score,
@@ -487,6 +326,12 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
               ? { ...state.packageData, securityFindings: finalReport.securityFindings }
               : state.packageData
           }));
+          const scanEndedAt = now();
+          set(state => ({
+            packageData: state.packageData
+              ? { ...state.packageData, scanEndedAt, reportGeneratedAt: now() }
+              : state.packageData
+          }));
         } catch (e) {
           // Synthesis JSON unrecoverable — still surface findings so UI doesn't freeze
           console.error('Failed to parse synthesis JSON', e);
@@ -538,6 +383,24 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
                 : state.packageData
             }));
           }
+          // Enrich commercialModel from LLM report if still unknown
+          const commercialUse = (parsed as any).licenseExplanation?.commercialUse;
+          if (commercialUse) {
+            set(state => {
+              if (!state.packageData || state.packageData.commercialModel !== 'unknown') return {};
+              const updates: Partial<PackageAnalysisData> = {};
+              if (commercialUse === 'YES') { updates.commercialModel = 'open-source'; updates.commercialUseClassification = 'allowed'; }
+              else if (commercialUse === 'NO') { updates.commercialUseClassification = 'restricted'; }
+              else if (commercialUse === 'CONDITIONS') { updates.commercialUseClassification = 'needs-permission'; }
+              return { packageData: { ...state.packageData, ...updates } };
+            });
+          }
+          const scanEndedAt = now();
+          set(state => ({
+            packageData: state.packageData
+              ? { ...state.packageData, scanEndedAt, reportGeneratedAt: now() }
+              : state.packageData
+          }));
         } catch (e) {
           // Truncated or malformed JSON — set empty report so the UI does not freeze
           console.error('Failed to parse final JSON', e);

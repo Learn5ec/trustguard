@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TrustGuard AI — Batch Security Report</title>
+<style>*,::before,::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09090b;--surface:#18181b;--surface2:#27272a;--surface3:#3f3f46;
+  --border:#3f3f46;--border2:#27272a;
+  --text:#f4f4f5;--muted:#a1a1aa;--dim:#71717a;--faint:#52525b;
+  --indigo:#6366f1;--indigo-light:#818cf8;--indigo-dim:rgba(99,102,241,.15);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.15);
+  --amber:#f59e0b;--amber-dim:rgba(245,158,11,.15);
+  --green:#22c55e;--green-dim:rgba(34,197,94,.15);
+  --cyan:#22d3ee;
+  --font-mono:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+}
+html{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{max-width:960px;margin:0 auto;padding:32px 24px 80px}
+a{color:var(--indigo-light);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);font-size:.875em;background:var(--surface2);
+  border:1px solid var(--border2);padding:.1em .35em;border-radius:4px;color:var(--cyan)}
+pre{font-family:var(--font-mono);background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:16px;overflow-x:auto;font-size:.85em;margin:12px 0}
+
+/* ── Layout ─────────────────────────────── */
+.page-header{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
+.page-header h1{font-size:1.6rem;font-weight:800;color:var(--text);line-height:1.2}
+.page-header .meta{color:var(--muted);font-size:.85rem;margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+.card-title{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:16px;
+  display:flex;align-items:center;gap:8px}
+.card-title .icon{font-size:1.1rem}
+section{margin-bottom:20px}
+
+/* ── Scores ─────────────────────────────── */
+.scores{display:flex;flex-wrap:wrap;gap:32px}
+.score-block{min-width:200px}
+.score-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
+.score-value{font-size:2rem;font-weight:800;font-variant-numeric:tabular-nums}
+.score-value.risk{color:var(--red)}
+.score-value.trust{color:var(--green)}
+.score-sub{font-size:.75rem;color:var(--dim);margin-top:4px}
+.breakdown{margin-top:12px;display:flex;flex-direction:column;gap:4px}
+.breakdown-row{display:flex;justify-content:space-between;font-size:.75rem;
+  background:var(--surface2);border-radius:4px;padding:5px 10px}
+.breakdown-row .factor{color:var(--muted)}
+.breakdown-row .impact{font-weight:600}
+.impact-risk{color:var(--red)}
+.impact-trust-pos{color:var(--green)}
+.impact-trust-neg{color:var(--amber)}
+
+/* ── Badges ─────────────────────────────── */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.badge-critical{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.badge-high{background:rgba(249,115,22,.12);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+.badge-medium{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.badge-low{background:rgba(234,179,8,.12);color:#facc15;border:1px solid rgba(234,179,8,.3)}
+.badge-info{background:var(--indigo-dim);color:var(--indigo-light);border:1px solid rgba(99,102,241,.3)}
+.badge-confirmed{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-inferred{background:var(--surface2);color:var(--dim);border:1px solid var(--border)}
+.badge-ecosystem{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.badge-popularity{background:var(--indigo-dim);color:var(--indigo-light);border:1px solid rgba(99,102,241,.3)}
+.badge-verdict-use{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-verdict-caution{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.badge-verdict-avoid{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+
+/* ── Tables ─────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin:12px 0}
+thead tr{background:var(--surface2)}
+th{padding:8px 12px;text-align:left;font-weight:600;color:var(--muted);
+  text-transform:uppercase;font-size:.7rem;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border2);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+/* ── Finding cards ───────────────────────── */
+.finding{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px}
+.finding-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.finding-title{font-weight:600;color:var(--text);font-size:.9rem}
+.finding-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.finding-body{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:8px}
+.finding-evidence{font-family:var(--font-mono);font-size:.75rem;background:var(--surface);
+  border:1px solid var(--border);border-radius:4px;padding:8px 12px;margin:8px 0;
+  color:var(--cyan);word-break:break-all}
+.finding-rec{border-left:2px solid var(--indigo);padding-left:12px;
+  font-size:.82rem;color:var(--muted);margin-top:8px;font-style:italic}
+
+/* ── STRIDE ─────────────────────────────── */
+.stride-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.stride-grid{grid-template-columns:1fr}}
+.stride-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px}
+.stride-cat{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--indigo-light);margin-bottom:6px}
+.stride-text{font-size:.82rem;color:var(--muted);line-height:1.55}
+.threat-level{display:inline-flex;padding:3px 10px;border-radius:6px;font-size:.75rem;font-weight:700;
+  background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3);margin-bottom:16px}
+
+/* ── License ─────────────────────────────── */
+.license-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+@media(max-width:600px){.license-grid{grid-template-columns:1fr}}
+.license-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.license-cell h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.license-list li{font-size:.8rem;color:var(--text);list-style:none;padding:2px 0}
+.license-summary{font-weight:700;color:var(--text);margin-bottom:8px}
+.license-plain{border-left:2px solid var(--border);padding-left:12px;font-size:.82rem;
+  color:var(--muted);font-style:italic;margin-top:12px}
+
+/* ── Alternatives ───────────────────────── */
+.alt-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px}
+.alt-name{font-weight:700;color:var(--text);font-size:.95rem}
+.alt-desc{font-size:.82rem;color:var(--muted);margin:6px 0 10px}
+.alt-meta{display:flex;flex-wrap:wrap;gap:10px;font-size:.75rem;color:var(--dim)}
+.alt-why{border-left:2px solid var(--green);padding-left:10px;font-size:.82rem;
+  color:var(--muted);margin-top:8px}
+
+/* ── Remediation ────────────────────────── */
+.rem-item{display:flex;gap:12px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:14px;margin-bottom:10px}
+.rem-priority{flex-shrink:0;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;
+  text-transform:uppercase;align-self:flex-start}
+.priority-critical{background:var(--red-dim);color:var(--red)}
+.priority-high{background:rgba(249,115,22,.12);color:#fb923c}
+.priority-medium{background:var(--amber-dim);color:var(--amber)}
+.priority-low{background:var(--green-dim);color:var(--green)}
+.rem-action{font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:4px}
+.rem-rationale{font-size:.8rem;color:var(--muted);font-style:italic}
+
+/* ── Metadata grid ──────────────────────── */
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media(max-width:600px){.meta-grid{grid-template-columns:1fr}}
+.meta-row{display:flex;justify-content:space-between;font-size:.82rem;
+  background:var(--surface2);border-radius:4px;padding:5px 10px}
+.meta-key{color:var(--dim)}
+.meta-val{color:var(--text);font-family:var(--font-mono);font-size:.8rem;text-align:right}
+
+/* ── Token usage ────────────────────────── */
+.token-table td:first-child{color:var(--muted);width:55%}
+.token-table td:last-child{font-family:var(--font-mono);text-align:right}
+.token-total{font-weight:700}
+
+/* ── Batch summary table ────────────────── */
+.summary-table td:nth-child(3),.summary-table td:nth-child(4){font-family:var(--font-mono);font-weight:600}
+.summary-table td:nth-child(3){color:var(--red)}
+.summary-table td:nth-child(4){color:var(--green)}
+
+/* ── Collapsible sections ───────────────── */
+details{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+summary{padding:16px 20px;cursor:pointer;background:var(--surface);font-weight:700;
+  font-size:.95rem;color:var(--text);display:flex;align-items:center;gap:8px;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▶';font-size:.7rem;color:var(--dim);transition:transform .2s}
+details[open] summary::before{transform:rotate(90deg)}
+details[open] summary{border-bottom:1px solid var(--border)}
+.details-body{padding:20px;background:var(--surface)}
+
+/* ── Misc ───────────────────────────────── */
+.divider{border:none;border-top:1px solid var(--border);margin:28px 0}
+.text-muted{color:var(--muted)}
+.text-dim{color:var(--dim)}
+.text-red{color:var(--red)}
+.text-green{color:var(--green)}
+.text-amber{color:var(--amber)}
+.text-indigo{color:var(--indigo-light)}
+.mono{font-family:var(--font-mono)}
+.footer{border-top:1px solid var(--border);padding-top:24px;margin-top:40px;
+  text-align:center;font-size:.75rem;color:var(--faint)}
+.clean-findings{background:var(--green-dim);border:1px solid rgba(34,197,94,.3);
+  border-radius:8px;padding:16px;color:var(--green);font-size:.88rem;text-align:center}
+/* ── Deprecation warnings ───────────────────────── */
+.warn-deprecated{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+  border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px}
+.warn-unmaintained{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);
+  border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px}
+.warn-icon{font-size:1.3rem;flex-shrink:0;margin-top:2px}
+.warn-title{font-weight:700;font-size:.9rem;margin-bottom:4px}
+.warn-deprecated .warn-title{color:var(--red)}
+.warn-unmaintained .warn-title{color:var(--amber)}
+.warn-text{font-size:.82rem;color:var(--muted)}
+/* ── Attribution chip ───────────────────────────── */
+.repo-attribution{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:.78rem;
+  color:var(--muted);margin:6px 0 0;font-family:var(--font-mono)}
+.repo-attribution a{color:var(--indigo-light)}
+/* ── Appendix ───────────────────────────────────── */
+.appendix-table td,.appendix-table th{font-size:.78rem;padding:6px 10px}
+.appendix-section{margin-bottom:24px}
+.appendix-section h4{font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:8px;
+  border-bottom:1px solid var(--border2);padding-bottom:4px}</style>
+</head>
+<body>
+<div class="page-header">
+  <h1>TrustGuard AI — Batch Security Report</h1>
+  <div class="meta">
+    Generated 2026-05-27 · 6 packages analysed
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📊</span> Batch Summary</div>
+  <table class="summary-table">
+    <thead><tr><th>Package</th><th>Version</th><th>Ecosystem</th><th>Risk</th><th>Trust</th><th>CVEs</th><th>License</th><th>Commercial</th><th>Verdict</th></tr></thead>
+    <tbody><tr>
+        <td class="mono">fastapi-pagination</td>
+        <td class="mono text-dim">^0.12.13</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">5/100</span></td>
+        <td style="color:var(--green)">78/100</td>
+        <td>0</td>
+        <td class="mono text-dim" style="font-size:.78rem">–</td>
+        <td style="font-size:.78rem"> –</td>
+        <td><span class="badge badge-verdict-avoid">AVOID</span></td>
+      </tr><tr>
+        <td class="mono">fastapi-redis-cache</td>
+        <td class="mono text-dim">^0.2.5</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">5/100</span></td>
+        <td style="color:var(--green)">78/100</td>
+        <td>0</td>
+        <td class="mono text-dim" style="font-size:.78rem">–</td>
+        <td style="font-size:.78rem"> –</td>
+        <td><span class="badge badge-verdict-avoid">AVOID</span></td>
+      </tr><tr>
+        <td class="mono">pydantic-settings</td>
+        <td class="mono text-dim">^2.3.3</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">5/100</span></td>
+        <td style="color:var(--green)">78/100</td>
+        <td>0</td>
+        <td class="mono text-dim" style="font-size:.78rem">–</td>
+        <td style="font-size:.78rem"> –</td>
+        <td><span class="badge badge-verdict-avoid">AVOID</span></td>
+      </tr><tr>
+        <td class="mono">pyjwt</td>
+        <td class="mono text-dim">^2.6.0</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">29/100</span></td>
+        <td style="color:var(--green)">68/100</td>
+        <td>8</td>
+        <td class="mono text-dim" style="font-size:.78rem">–</td>
+        <td style="font-size:.78rem"> –</td>
+        <td><span class="badge badge-verdict-use">REPLACE_SOON</span></td>
+      </tr><tr>
+        <td class="mono">passlib</td>
+        <td class="mono text-dim">^1.7.4</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">5/100</span></td>
+        <td style="color:var(--green)">78/100</td>
+        <td>0</td>
+        <td class="mono text-dim" style="font-size:.78rem">–</td>
+        <td style="font-size:.78rem"> –</td>
+        <td><span class="badge badge-verdict-avoid">AVOID</span></td>
+      </tr><tr>
+        <td class="mono">httpx</td>
+        <td class="mono text-dim">^0.27.0</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">20/100</span></td>
+        <td style="color:var(--green)">72/100</td>
+        <td>2</td>
+        <td class="mono text-dim" style="font-size:.78rem">–</td>
+        <td style="font-size:.78rem"> –</td>
+        <td><span class="badge badge-verdict-avoid">AVOID</span></td>
+      </tr></tbody>
+  </table>
+</div>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    fastapi-pagination <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^0.12.13</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 5/100 · Trust 78/100 · 0 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card"><div class="card-title">Executive Summary</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">fastapi-pagination is a Python package for adding pagination to FastAPI applications. Without access to the actual source code, security findings are limited to metadata and known vulnerabilities. The package appears to have low adoption and an unknown license, which introduces potential risks.</p></div>
+<div class="card"><div class="card-title">Secure Code Review</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap">No source code was provided for review, so a detailed code-level analysis cannot be performed. Key security concerns such as dangerous API usage, hardcoded secrets, or telemetry cannot be confirmed or ruled out without inspecting the implementation. The absence of reported vulnerabilities in the provided data does not guarantee security, especially given the low adoption and unknown license.</p></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🕸</span> STRIDE Threat Model</div>
+  <div class="threat-level">Overall threat level: MEDIUM</div>
+  <div class="stride-grid">
+    <div class="stride-card"><div class="stride-cat">Spoofing</div><div class="stride-text">Cannot be assessed without source code. Potential risks include improper authentication or input validation.</div></div>
+    <div class="stride-card"><div class="stride-cat">Tampering</div><div class="stride-text">Cannot be assessed without source code. Risks may include insecure data handling or modification of pagination logic.</div></div>
+    <div class="stride-card"><div class="stride-cat">Repudiation</div><div class="stride-text">Cannot be assessed without source code. Risks may include lack of logging or audit trails for pagination actions.</div></div>
+    <div class="stride-card"><div class="stride-cat">Information Disclosure</div><div class="stride-text">Cannot be assessed without source code. Risks may include exposure of sensitive data through pagination metadata or error messages.</div></div>
+    <div class="stride-card"><div class="stride-cat">Denial of Service</div><div class="stride-text">Cannot be assessed without source code. Risks may include inefficient pagination queries leading to resource exhaustion.</div></div>
+    <div class="stride-card"><div class="stride-cat">Elevation of Privilege</div><div class="stride-text">Cannot be assessed without source code. Risks may include improper access control in pagination endpoints.</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📜</span> License Analysis</div>
+  <div class="license-summary">The license for fastapi-pagination is unknown, which poses legal and compliance risks.</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+    Risk: <strong style="color:var(--text)">HIGH</strong> &nbsp;·&nbsp;
+    Commercial use: <strong style="color:var(--text)">UNCLEAR</strong>
+  </div>
+  <div class="license-grid">
+    <div class="license-cell"><h4>You Can</h4><ul class="license-list"><li>✅ Use the package in your projects (but with legal uncertainty)</li><li>✅ Distribute the package if permitted by the unknown license terms</li></ul></div>
+    <div class="license-cell"><h4>You Cannot</h4><ul class="license-list"><li>🚫 Be certain of your rights to use, modify, or distribute the package</li><li>🚫 Comply with open-source obligations if the license is restrictive</li></ul></div>
+    <div class="license-cell"><h4>You Must</h4><ul class="license-list"><li>⚡ Clarify the license terms with the package maintainers before use</li><li>⚡ Assume potential legal risks until the license is confirmed</li></ul></div>
+  </div>
+  <div class="license-plain">The license for this package is unknown, which means you don't have clear permissions for use, modification, or distribution. This introduces legal risks, especially for commercial use. You should contact the maintainers to clarify the license before proceeding.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div>
+<div class="card"><div class="card-title"><span class="icon">🔄</span> Alternatives</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">1. fastapi</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">FastAPI is a modern, fast (high-performance) web framework for building APIs with Python 3.7+ based on standard Python type hints.</div>
+  <div class="alt-meta">
+    <span>⭐ ~55k stars</span>
+    <span>⬇ ~10M/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">FastAPI has built-in pagination support and is widely adopted with a clear MIT license, reducing legal and security risks.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Built-in OpenAPI and JSON Schema support, Automatic interactive API documentation, High performance and async support</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">2. SQLAlchemy</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">SQLAlchemy is the Python SQL toolkit and Object Relational Mapper that gives application developers the full power and flexibility of SQL.</div>
+  <div class="alt-meta">
+    <span>⭐ ~6k stars</span>
+    <span>⬇ ~20M/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: MODERATE</span>
+  </div>
+  <div class="alt-why">SQLAlchemy provides robust pagination utilities and is backed by a large community with a clear MIT license.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Flexible ORM and core SQL support, Comprehensive documentation and community support, Extensible for custom pagination logic</div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛠</span> Remediation Steps</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Clarify the license terms with the package maintainers or avoid using the package until the license is confirmed.</div>
+    <div class="rem-rationale">An unknown license introduces legal risks and compliance uncertainties that could impact your project.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">SHORT_TERM</span>
+  <div>
+    <div class="rem-action">Evaluate alternative packages with clear licenses and higher adoption, such as FastAPI or SQLAlchemy.</div>
+    <div class="rem-rationale">Alternatives reduce legal risks and provide better community support and security assurances.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">LONG_TERM</span>
+  <div>
+    <div class="rem-action">If you proceed with fastapi-pagination, conduct a thorough code review to identify potential security risks.</div>
+    <div class="rem-rationale">Without source code access, hidden risks such as hardcoded secrets or telemetry may exist.</div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🪙</span> Token Usage &amp; Cost</div>
+  <table class="token-table">
+    <tbody>
+      <tr><td>Provider / Model</td><td class="mono">mistral/mistral-large-latest</td></tr>
+      <tr><td>Input tokens</td><td>2,033</td></tr>
+      <tr><td>Output tokens</td><td>1,189</td></tr>
+      <tr class="token-total"><td>Total tokens</td><td>3,222</td></tr>
+      <tr class="token-total"><td>Estimated cost</td><td>$0.0112</td></tr>
+      <tr><td>Count source</td><td>Reported by API</td></tr>
+    </tbody>
+  </table>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    fastapi-redis-cache <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^0.2.5</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 5/100 · Trust 78/100 · 0 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card"><div class="card-title">Executive Summary</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">This package lacks source code visibility and has an unknown license, making security and compliance assessment impossible. Given the niche adoption and unresolved confidence, it should be avoided unless critical functionality is confirmed and risks are mitigated.</p></div>
+<div class="card"><div class="card-title">Secure Code Review</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap">No source code was provided for review, preventing any analysis of implementation details, dangerous patterns, or hidden behaviors. Without access to the actual code, security risks such as hardcoded secrets, insecure dependencies, or silent telemetry cannot be ruled out. The absence of GitHub data further limits transparency into maintenance practices or community trust signals.</p></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🕸</span> STRIDE Threat Model</div>
+  <div class="threat-level">Overall threat level: MEDIUM</div>
+  <div class="stride-grid">
+    <div class="stride-card"><div class="stride-cat">Spoofing</div><div class="stride-text">Cannot be assessed without source code. Potential risks include hardcoded credentials or insecure authentication mechanisms.</div></div>
+    <div class="stride-card"><div class="stride-cat">Tampering</div><div class="stride-text">Cannot be assessed without source code. Risks may include unsafe deserialization or lack of integrity checks.</div></div>
+    <div class="stride-card"><div class="stride-cat">Repudiation</div><div class="stride-text">Cannot be assessed without source code. Logging or audit mechanisms may be absent or insufficient.</div></div>
+    <div class="stride-card"><div class="stride-cat">Information Disclosure</div><div class="stride-text">Cannot be assessed without source code. Risks may include exposure of sensitive data via logs, telemetry, or insecure transmission.</div></div>
+    <div class="stride-card"><div class="stride-cat">Denial of Service</div><div class="stride-text">Cannot be assessed without source code. Risks may include resource exhaustion or lack of rate limiting.</div></div>
+    <div class="stride-card"><div class="stride-cat">Elevation of Privilege</div><div class="stride-text">Cannot be assessed without source code. Risks may include unsafe API usage or excessive permissions.</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📜</span> License Analysis</div>
+  <div class="license-summary">The license is listed as 'Unknown', which poses significant legal and compliance risks.</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+    Risk: <strong style="color:var(--text)">HIGH</strong> &nbsp;·&nbsp;
+    Commercial use: <strong style="color:var(--text)">UNCLEAR</strong>
+  </div>
+  <div class="license-grid">
+    <div class="license-cell"><h4>You Can</h4><ul class="license-list"><li>✅ Use the package in private projects (with caution and legal consultation)</li><li>✅ Distribute the package if the license is later clarified and permits it</li></ul></div>
+    <div class="license-cell"><h4>You Cannot</h4><ul class="license-list"><li>🚫 Use the package in commercial products without legal risk</li><li>🚫 Modify or redistribute the package without explicit permission</li></ul></div>
+    <div class="license-cell"><h4>You Must</h4><ul class="license-list"><li>⚡ Seek legal advice before using the package in any project</li><li>⚡ Clarify the license with the package maintainers before adoption</li></ul></div>
+  </div>
+  <div class="license-plain">The license for this package is unknown, meaning you have no legal permission to use, modify, or distribute it. Using it in any project could expose you to legal risks, including copyright infringement. You should avoid this package until the license is clarified or seek legal advice.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div>
+<div class="card"><div class="card-title"><span class="icon">🔄</span> Alternatives</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">1. fastapi-cache</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">A caching extension for FastAPI that supports Redis, Memcached, and in-memory caching.</div>
+  <div class="alt-meta">
+    <span>⭐ ~1.2k stars</span>
+    <span>⬇ ~50k/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">Well-documented, actively maintained, and backed by a clear MIT license. Offers similar functionality with better community trust.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Supports multiple backends (Redis, Memcached, in-memory), Simple integration with FastAPI, Type hints and async support</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">2. aiocache</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">An asyncio cache library with support for Redis, Memcached, and other backends.</div>
+  <div class="alt-meta">
+    <span>⭐ ~1.5k stars</span>
+    <span>⬇ ~200k/wk</span>
+    <span>License: Apache-2.0</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: MODERATE</span>
+  </div>
+  <div class="alt-why">Mature, widely adopted, and compatible with FastAPI. Clear Apache 2.0 license and strong community support.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Async-first design, Pluggable backends, Advanced caching strategies</div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛠</span> Remediation Steps</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Avoid using this package until the license is clarified and source code is reviewed.</div>
+    <div class="rem-rationale">The unknown license and lack of source code transparency pose significant legal and security risks.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">SHORT_TERM</span>
+  <div>
+    <div class="rem-action">Migrate to a well-maintained alternative like 'fastapi-cache' or 'aiocache'.</div>
+    <div class="rem-rationale">These alternatives offer similar functionality with better community trust, clear licensing, and active maintenance.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">LONG_TERM</span>
+  <div>
+    <div class="rem-action">If this package is critical, contact the maintainers to clarify the license and request source code access for security review.</div>
+    <div class="rem-rationale">Direct engagement may resolve transparency issues, but alternatives should still be prioritized.</div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🪙</span> Token Usage &amp; Cost</div>
+  <table class="token-table">
+    <tbody>
+      <tr><td>Provider / Model</td><td class="mono">mistral/mistral-large-latest</td></tr>
+      <tr><td>Input tokens</td><td>2,032</td></tr>
+      <tr><td>Output tokens</td><td>1,164</td></tr>
+      <tr class="token-total"><td>Total tokens</td><td>3,196</td></tr>
+      <tr class="token-total"><td>Estimated cost</td><td>$0.0110</td></tr>
+      <tr><td>Count source</td><td>Reported by API</td></tr>
+    </tbody>
+  </table>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    pydantic-settings <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^2.3.3</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 5/100 · Trust 78/100 · 0 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card"><div class="card-title">Executive Summary</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">pydantic-settings is a niche Python package with minimal adoption and unresolved metadata. Without access to source code, security assessment is limited to metadata risks. The unknown license and low download volume suggest caution before adoption in production environments.</p></div>
+<div class="card"><div class="card-title">Secure Code Review</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap">No source code was provided for review. Consequently, it is impossible to assess the actual implementation, security practices, or potential vulnerabilities within the codebase. Key risks such as hardcoded secrets, dangerous API usage, or silent telemetry cannot be ruled out without code inspection.</p></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🕸</span> STRIDE Threat Model</div>
+  <div class="threat-level">Overall threat level: MEDIUM</div>
+  <div class="stride-grid">
+    <div class="stride-card"><div class="stride-cat">Spoofing</div><div class="stride-text">Cannot be assessed without source code. No evidence of authentication or integrity checks.</div></div>
+    <div class="stride-card"><div class="stride-cat">Tampering</div><div class="stride-text">Cannot be assessed without source code. No evidence of input validation or integrity mechanisms.</div></div>
+    <div class="stride-card"><div class="stride-cat">Repudiation</div><div class="stride-text">Cannot be assessed without source code. No evidence of logging or audit trails.</div></div>
+    <div class="stride-card"><div class="stride-cat">Information Disclosure</div><div class="stride-text">Cannot be assessed without source code. No evidence of data exposure risks.</div></div>
+    <div class="stride-card"><div class="stride-cat">Denial of Service</div><div class="stride-text">Cannot be assessed without source code. No evidence of resource exhaustion risks.</div></div>
+    <div class="stride-card"><div class="stride-cat">Elevation of Privilege</div><div class="stride-text">Cannot be assessed without source code. No evidence of privilege escalation risks.</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📜</span> License Analysis</div>
+  <div class="license-summary">The license is listed as 'Unknown', which poses significant legal and compliance risks.</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+    Risk: <strong style="color:var(--text)">HIGH</strong> &nbsp;·&nbsp;
+    Commercial use: <strong style="color:var(--text)">UNCLEAR</strong>
+  </div>
+  <div class="license-grid">
+    <div class="license-cell"><h4>You Can</h4><ul class="license-list"><li>✅ Use the package in private projects (with caution)</li><li>✅ Distribute the package if you confirm the license permits it</li></ul></div>
+    <div class="license-cell"><h4>You Cannot</h4><ul class="license-list"><li>🚫 Use the package commercially without legal risk</li><li>🚫 Redistribute the package without knowing the license terms</li></ul></div>
+    <div class="license-cell"><h4>You Must</h4><ul class="license-list"><li>⚡ Clarify the license with the author before any production use</li><li>⚡ Assume no rights beyond personal, non-commercial use until confirmed</li></ul></div>
+  </div>
+  <div class="license-plain">The license for this package is unknown, which means you have no legal certainty about what you can or cannot do with it. Using or distributing this package in any environment without clarification could expose you to legal action or compliance violations.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div>
+<div class="card"><div class="card-title"><span class="icon">🔄</span> Alternatives</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">1. pydantic</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">Data validation and settings management using Python type hints. Core library for Pydantic ecosystem.</div>
+  <div class="alt-meta">
+    <span>⭐ ~20k stars</span>
+    <span>⬇ ~20M/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">Well-established, MIT-licensed, and widely adopted with strong community trust and maintenance.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Data validation and parsing, Settings management via environment variables, Type hints and schema generation</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">2. python-dotenv</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">Reads key-value pairs from a .env file and sets them as environment variables.</div>
+  <div class="alt-meta">
+    <span>⭐ ~6k stars</span>
+    <span>⬇ ~15M/wk</span>
+    <span>License: BSD-3-Clause</span>
+    <span>Maintenance: MAINTAINED</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">Simple, focused, and MIT-licensed with high adoption and minimal dependencies.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Lightweight .env file parsing, No external dependencies, Seamless integration with os.environ</div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛠</span> Remediation Steps</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Clarify the package's license with the author or maintainer before any use.</div>
+    <div class="rem-rationale">Unknown license poses legal and compliance risks that could affect your project or organization.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">SHORT_TERM</span>
+  <div>
+    <div class="rem-action">Review the source code if available, focusing on install scripts, telemetry, and dangerous API usage.</div>
+    <div class="rem-rationale">Without code review, critical security risks may remain hidden.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">LONG_TERM</span>
+  <div>
+    <div class="rem-action">Migrate to a well-maintained, licensed alternative like pydantic or python-dotenv.</div>
+    <div class="rem-rationale">Alternatives offer better security, support, and legal clarity.</div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🪙</span> Token Usage &amp; Cost</div>
+  <table class="token-table">
+    <tbody>
+      <tr><td>Provider / Model</td><td class="mono">mistral/mistral-large-latest</td></tr>
+      <tr><td>Input tokens</td><td>2,031</td></tr>
+      <tr><td>Output tokens</td><td>1,075</td></tr>
+      <tr class="token-total"><td>Total tokens</td><td>3,106</td></tr>
+      <tr class="token-total"><td>Estimated cost</td><td>$0.0105</td></tr>
+      <tr><td>Count source</td><td>Reported by API</td></tr>
+    </tbody>
+  </table>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    pyjwt <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^2.6.0</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 29/100 · Trust 68/100 · 8 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">29<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Vulnerabilities</span><span class="impact impact-risk">+24</span></div><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">68<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-12</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card"><div class="card-title">Executive Summary</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">PyJWT (v2.6.0) is a widely used Python library for JSON Web Token (JWT) handling, but it has unresolved HIGH-severity vulnerabilities. Avoid using versions below 2.12.0 due to critical RFC non-compliance and key confusion risks. Upgrade immediately if JWT security is a priority.</p></div>
+<div class="card"><div class="card-title">Secure Code Review</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap">No source code was provided for direct review. However, the vulnerability data reveals critical implementation flaws in PyJWT's handling of JWT standards. Specifically, the library fails to validate the `crit` (Critical) Header Parameter (RFC 7515 §4.1.11), allowing attackers to bypass security controls by including unrecognized extensions. Additionally, key confusion vulnerabilities (e.g., GHSA-ffqj-6fqr-9h24) enable attackers to exploit symmetric/asymmetric key mismatches, leading to forged tokens. These issues are confirmed in the provided vulnerability reports and PoCs.</p></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings
+    <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:auto">1 CRITICAL · 2 HIGH · 1 LOW</span>
+  </div>
+  
+<div class="finding">
+  <div class="finding-header">
+    <div class="finding-title">1. Unpatched `crit` header bypass</div>
+    <span class="badge badge-critical">CRITICAL</span>
+  </div>
+  <div class="finding-meta">
+    <span class="badge badge-ecosystem">DEPENDENCY_CVE</span>
+    <span class="badge badge-confirmed">✓ Confirmed</span>
+  </div>
+  <div class="finding-body">PyJWT fails to validate the `crit` (Critical) Header Parameter as required by RFC 7515 §4.1.11. This allows attackers to include unrecognized extensions in JWTs, bypassing security policies (e.g., MFA, token binding). The vulnerability is confirmed in versions up to 2.11.0 and fixed in 2.12.0.</div>
+  <div class="finding-evidence">GHSA-752w-5fwx-jx9f: Proof of Concept in advisory shows PyJWT accepts tokens with `crit: [&quot;x-custom-policy&quot;]` without rejection. Expected behavior: `InvalidTokenError: Unsupported critical extension`.</div>
+  <div class="finding-rec">Upgrade to PyJWT v2.12.0 or later immediately. If upgrading is not possible, validate `crit` headers manually before decoding tokens.</div>
+</div>
+<div class="finding">
+  <div class="finding-header">
+    <div class="finding-title">2. Key confusion via PEM/SSH public keys</div>
+    <span class="badge badge-high">HIGH</span>
+  </div>
+  <div class="finding-meta">
+    <span class="badge badge-ecosystem">DEPENDENCY_CVE</span>
+    <span class="badge badge-confirmed">✓ Confirmed</span>
+  </div>
+  <div class="finding-body">PyJWT's HMAC algorithm does not block all PEM/SSH-encoded public keys, enabling attackers to use public keys as HMAC secrets. This allows forged tokens to be accepted when `algorithms.get_default_algorithms()` is used. Fixed in v2.4.0.</div>
+  <div class="finding-evidence">GHSA-ffqj-6fqr-9h24: PoC demonstrates HMAC validation with SSH-encoded Ed25519 public keys, bypassing signature checks. Affects versions 1.5.0–2.3.0.</div>
+  <div class="finding-rec">Upgrade to PyJWT v2.4.0 or later. Always explicitly specify allowed algorithms (e.g., `algorithms=[&quot;HS256&quot;]`) instead of using `get_default_algorithms()`.</div>
+</div>
+<div class="finding">
+  <div class="finding-header">
+    <div class="finding-title">3. PKCS1 PEM key confusion</div>
+    <span class="badge badge-high">HIGH</span>
+  </div>
+  <div class="finding-meta">
+    <span class="badge badge-ecosystem">DEPENDENCY_CVE</span>
+    <span class="badge badge-confirmed">✓ Confirmed</span>
+  </div>
+  <div class="finding-body">PyJWT versions ≤1.5.0 do not block PKCS1 PEM-encoded public keys in HMAC validation, allowing attackers to craft JWTs with symmetric keys derived from public keys. Fixed in v1.5.1.</div>
+  <div class="finding-evidence">GHSA-r9jw-mwhq-wp62: `invalid_strings` in `HMACAlgorithm.prepare_key` omits `-----BEGIN RSA PUBLIC KEY-----`, enabling key confusion attacks.</div>
+  <div class="finding-rec">Upgrade to PyJWT v1.5.1 or later. Avoid using PKCS1 PEM keys for HMAC validation.</div>
+</div>
+<div class="finding">
+  <div class="finding-header">
+    <div class="finding-title">4. Issuer field partial matching bug</div>
+    <span class="badge badge-low">LOW</span>
+  </div>
+  <div class="finding-meta">
+    <span class="badge badge-ecosystem">DEPENDENCY_CVE</span>
+    <span class="badge badge-confirmed">✓ Confirmed</span>
+  </div>
+  <div class="finding-body">PyJWT v2.10.0 incorrectly uses string containment (`in`) instead of equality (`==`) for `iss` claim validation, allowing tokens with partial issuer matches to pass. Fixed in v2.10.1.</div>
+  <div class="finding-evidence">GHSA-75c5-xw7c-p5pm: PoC shows `issuer=&quot;urn:expected&quot;` accepts `payload[&quot;iss&quot;]=&quot;urn:&quot;`. Regression introduced in commit 1570e708.</div>
+  <div class="finding-rec">Upgrade to PyJWT v2.10.1 or later. Audit issuer validation logic in your codebase.</div>
+</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🕸</span> STRIDE Threat Model</div>
+  <div class="threat-level">Overall threat level: HIGH</div>
+  <div class="stride-grid">
+    <div class="stride-card"><div class="stride-cat">Spoofing</div><div class="stride-text">HIGH: Attackers can forge tokens via key confusion (e.g., using public keys as HMAC secrets) or bypass `crit` header validation to impersonate users.</div></div>
+    <div class="stride-card"><div class="stride-cat">Tampering</div><div class="stride-text">HIGH: Lack of `crit` validation allows tampering with critical extensions (e.g., `cnf` for token binding). Key confusion enables signature forgery.</div></div>
+    <div class="stride-card"><div class="stride-cat">Repudiation</div><div class="stride-text">MEDIUM: Forged tokens could enable attackers to deny actions, especially if `crit` extensions are used for non-repudiation (e.g., MFA).</div></div>
+    <div class="stride-card"><div class="stride-cat">Information Disclosure</div><div class="stride-text">LOW: No direct evidence of data leakage, but forged tokens could grant unauthorized access to sensitive data.</div></div>
+    <div class="stride-card"><div class="stride-cat">Denial of Service</div><div class="stride-text">LOW: No known DoS vectors in the provided vulnerabilities, but malformed `crit` headers could cause parsing errors in mixed-library environments.</div></div>
+    <div class="stride-card"><div class="stride-cat">Elevation of Privilege</div><div class="stride-text">HIGH: Forged tokens with `crit` bypass or key confusion can grant admin/privileged roles (e.g., `{&quot;role&quot;: &quot;admin&quot;}` in PoC).</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📜</span> License Analysis</div>
+  <div class="license-summary">PyJWT's license is not explicitly stated in the provided data (labeled 'Unknown').</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+    Risk: <strong style="color:var(--text)">MEDIUM</strong> &nbsp;·&nbsp;
+    Commercial use: <strong style="color:var(--text)">UNCLEAR</strong>
+  </div>
+  <div class="license-grid">
+    <div class="license-cell"><h4>You Can</h4><ul class="license-list"><li>✅ Use the package in open-source projects (likely, but verify license)</li><li>✅ Distribute the package (likely, but verify license)</li></ul></div>
+    <div class="license-cell"><h4>You Cannot</h4><ul class="license-list"><li>🚫 Assume commercial use rights without confirmation</li><li>🚫 Modify the code without license clarity</li></ul></div>
+    <div class="license-cell"><h4>You Must</h4><ul class="license-list"><li>⚡ Verify the license (e.g., MIT, BSD) before use in production</li><li>⚡ Comply with any attribution requirements if the license is permissive</li></ul></div>
+  </div>
+  <div class="license-plain">The license is unknown, which poses compliance risks. Check PyJWT's repository or PyPI page for the actual license (typically MIT or BSD for Python packages). Without confirmation, avoid commercial use or redistribution.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV) <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:auto">8 found</span></div>
+  <table><thead><tr><th>ID</th><th>Severity</th><th>Title</th><th>Fixed In</th></tr></thead>
+  <tbody><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-752w-5fwx-jx9f" target="_blank" class="mono">GHSA-752w-5fwx-jx9f</a></td>
+    <td><span class="badge badge-high">HIGH</span></td>
+    <td>PyJWT accepts unknown `crit` header extensions</td>
+    <td class="mono text-green">2.12.0</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-75c5-xw7c-p5pm" target="_blank" class="mono">GHSA-75c5-xw7c-p5pm</a></td>
+    <td><span class="badge badge-low">LOW</span></td>
+    <td>PyJWT Issuer field partial matches allowed</td>
+    <td class="mono text-green">2.10.1</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-ffqj-6fqr-9h24" target="_blank" class="mono">GHSA-ffqj-6fqr-9h24</a></td>
+    <td><span class="badge badge-high">HIGH</span></td>
+    <td>Key confusion through non-blocklisted public key formats</td>
+    <td class="mono text-green">2.4.0</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-r9jw-mwhq-wp62" target="_blank" class="mono">GHSA-r9jw-mwhq-wp62</a></td>
+    <td><span class="badge badge-high">HIGH</span></td>
+    <td>PyJWT vulnerable to key confusion attacks</td>
+    <td class="mono text-green">1.5.1</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2017-24" target="_blank" class="mono">PYSEC-2017-24</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2017-24</td>
+    <td class="mono text-green">1.5.1</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2022-202" target="_blank" class="mono">PYSEC-2022-202</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2022-202</td>
+    <td class="mono text-green">9c528670c455b8d948aff95ed50e22940d1ad3fc</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2025-183" target="_blank" class="mono">PYSEC-2025-183</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2025-183</td>
+    <td class="mono text-green">None</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2026-120" target="_blank" class="mono">PYSEC-2026-120</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2026-120</td>
+    <td class="mono text-green">2.12.0</td>
+  </tr></tbody></table>
+</div>
+<div class="card"><div class="card-title"><span class="icon">🔄</span> Alternatives</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">1. jwcrypto</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">A Python library for JWT, JWS, and JWE with strict RFC compliance. Actively maintained by the same team behind PyJWT.</div>
+  <div class="alt-meta">
+    <span>⭐ ~1.2k stars</span>
+    <span>⬇ ~500k/wk</span>
+    <span>License: LGPL-3.0</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: MODERATE</span>
+  </div>
+  <div class="alt-why">Strict `crit` header validation, no known key confusion vulnerabilities, and better separation of concerns for cryptographic operations.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Full RFC 7515/7516/7519 compliance, Support for JWE (JSON Web Encryption), Built-in key management</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">2. authlib</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">A comprehensive OAuth and JWT library with modern cryptographic practices. Used by FastAPI and other frameworks.</div>
+  <div class="alt-meta">
+    <span>⭐ ~4.5k stars</span>
+    <span>⬇ ~2M/wk</span>
+    <span>License: BSD-3-Clause</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">No `crit` bypass (CVE-2025-59420 fixed), explicit algorithm validation, and built-in OAuth2/JWT integration.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: OAuth2 and OpenID Connect support, JWT with automatic algorithm validation, Pluggable cryptographic backends</div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛠</span> Remediation Steps</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Upgrade PyJWT to v2.12.0 or later to fix the `crit` header bypass (GHSA-752w-5fwx-jx9f).</div>
+    <div class="rem-rationale">This vulnerability allows attackers to bypass security controls (e.g., MFA, token binding) by including unrecognized `crit` extensions.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">SHORT_TERM</span>
+  <div>
+    <div class="rem-action">Audit all JWT decoding calls to ensure explicit algorithm lists (e.g., `algorithms=[&quot;HS256&quot;]`) are used instead of `get_default_algorithms()`.</div>
+    <div class="rem-rationale">Prevents key confusion attacks (e.g., GHSA-ffqj-6fqr-9h24) where public keys are used as HMAC secrets.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">LONG_TERM</span>
+  <div>
+    <div class="rem-action">Migrate to a more secure JWT library (e.g., `jwcrypto` or `authlib`) if PyJWT's maintenance or RFC compliance remains a concern.</div>
+    <div class="rem-rationale">Alternative libraries have stricter RFC compliance and fewer historical vulnerabilities.</div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🪙</span> Token Usage &amp; Cost</div>
+  <table class="token-table">
+    <tbody>
+      <tr><td>Provider / Model</td><td class="mono">mistral/mistral-large-latest</td></tr>
+      <tr><td>Input tokens</td><td>10,603</td></tr>
+      <tr><td>Output tokens</td><td>2,300</td></tr>
+      <tr class="token-total"><td>Total tokens</td><td>12,903</td></tr>
+      <tr class="token-total"><td>Estimated cost</td><td>$0.0350</td></tr>
+      <tr><td>Count source</td><td>Reported by API</td></tr>
+    </tbody>
+  </table>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    passlib <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^1.7.4</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 5/100 · Trust 78/100 · 0 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card"><div class="card-title">Executive Summary</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">passlib is a Python password hashing library with no evident malicious code, but its low adoption and unknown license introduce trust and compliance risks. Use only after verifying license compatibility and considering more widely-adopted alternatives.</p></div>
+<div class="card"><div class="card-title">Secure Code Review</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap">No source code was provided for review, so a direct security assessment of the implementation cannot be completed. Without inspecting the actual code, it is impossible to confirm the absence of dangerous patterns such as eval/exec calls, hardcoded secrets, or silent telemetry. The package's stated purpose (password hashing) is security-critical, so thorough code review is strongly recommended before use.</p></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🕸</span> STRIDE Threat Model</div>
+  <div class="threat-level">Overall threat level: MEDIUM</div>
+  <div class="stride-grid">
+    <div class="stride-card"><div class="stride-cat">Spoofing</div><div class="stride-text">Unknown without source code inspection. Could be mitigated by using well-known, audited libraries.</div></div>
+    <div class="stride-card"><div class="stride-cat">Tampering</div><div class="stride-text">Unknown without source code inspection. No evidence of integrity checks or signed releases.</div></div>
+    <div class="stride-card"><div class="stride-cat">Repudiation</div><div class="stride-text">Unknown without source code inspection. No logging or audit trail mechanisms visible.</div></div>
+    <div class="stride-card"><div class="stride-cat">Information Disclosure</div><div class="stride-text">Unknown without source code inspection. No evidence of accidental exposure of credentials or system data.</div></div>
+    <div class="stride-card"><div class="stride-cat">Denial of Service</div><div class="stride-text">Unknown without source code inspection. No evidence of resource exhaustion risks in provided data.</div></div>
+    <div class="stride-card"><div class="stride-cat">Elevation of Privilege</div><div class="stride-text">Unknown without source code inspection. No evidence of privilege escalation vectors.</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📜</span> License Analysis</div>
+  <div class="license-summary">The license for passlib is marked as 'Unknown', meaning it is either missing or not clearly specified.</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+    Risk: <strong style="color:var(--text)">HIGH</strong> &nbsp;·&nbsp;
+    Commercial use: <strong style="color:var(--text)">UNCLEAR</strong>
+  </div>
+  <div class="license-grid">
+    <div class="license-cell"><h4>You Can</h4><ul class="license-list"><li>✅ Use the package in private projects (subject to legal review)</li><li>✅ Distribute the package if license is later confirmed permissive</li></ul></div>
+    <div class="license-cell"><h4>You Cannot</h4><ul class="license-list"><li>🚫 Use the package in commercial products without legal risk</li><li>🚫 Redistribute the package without knowing the license terms</li></ul></div>
+    <div class="license-cell"><h4>You Must</h4><ul class="license-list"><li>⚡ Verify the license before any use or distribution</li><li>⚡ Assume no rights until license is confirmed</li></ul></div>
+  </div>
+  <div class="license-plain">Because the license is unknown, you have no legal permission to use, modify, or distribute this package. Using it in any project could expose you to legal risk. You must confirm the license terms before proceeding.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div>
+<div class="card"><div class="card-title"><span class="icon">🔄</span> Alternatives</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">1. bcrypt</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">A widely-used password hashing library based on the bcrypt algorithm, known for its security and resistance to brute-force attacks.</div>
+  <div class="alt-meta">
+    <span>⭐ ~3k stars</span>
+    <span>⬇ ~5M/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">bcrypt is battle-tested, actively maintained, and has a clear MIT license. It is the de facto standard for password hashing in Python.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Built-in salt generation, Adaptive hashing (cost factor), Cross-platform compatibility</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">2. argon2-cffi</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">Python bindings for Argon2, the winner of the Password Hashing Competition, offering modern and secure password hashing.</div>
+  <div class="alt-meta">
+    <span>⭐ ~1k stars</span>
+    <span>⬇ ~1.5M/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">Argon2 is the current gold standard for password hashing, resistant to GPU/ASIC attacks, and has a clear MIT license.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Memory-hard function, Configurable parameters (time, memory, parallelism), Winner of PHC</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">3. django.contrib.auth.hashers</span>
+    <span class="badge badge-ecosystem">pypi (Django built-in)</span>
+  </div>
+  <div class="alt-desc">Django's built-in password hashing framework, supporting multiple algorithms including PBKDF2, Argon2, and bcrypt.</div>
+  <div class="alt-meta">
+    <span>⭐ ~80k (Django) stars</span>
+    <span>⬇ N/A (bundled with Django)/wk</span>
+    <span>License: BSD-3-Clause</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: MODERATE</span>
+  </div>
+  <div class="alt-why">If you're using Django, this is the most secure and integrated option, with clear BSD licensing and active maintenance.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Multiple algorithm support, Seamless integration with Django's auth system, Automatic algorithm upgrades</div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛠</span> Remediation Steps</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Confirm the license of passlib before any use.</div>
+    <div class="rem-rationale">Unknown license poses legal and compliance risks that must be resolved before integration.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">SHORT_TERM</span>
+  <div>
+    <div class="rem-action">Review the source code for security-critical patterns (eval, exec, hardcoded secrets, telemetry).</div>
+    <div class="rem-rationale">Without code review, the package's security posture is unverified, especially for a security-sensitive library.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">LONG_TERM</span>
+  <div>
+    <div class="rem-action">Migrate to a more widely-adopted and clearly-licensed alternative like bcrypt or argon2-cffi.</div>
+    <div class="rem-rationale">Alternatives offer better community trust, maintenance, and legal clarity, reducing long-term risk.</div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🪙</span> Token Usage &amp; Cost</div>
+  <table class="token-table">
+    <tbody>
+      <tr><td>Provider / Model</td><td class="mono">mistral/mistral-large-latest</td></tr>
+      <tr><td>Input tokens</td><td>2,029</td></tr>
+      <tr><td>Output tokens</td><td>1,335</td></tr>
+      <tr class="token-total"><td>Total tokens</td><td>3,364</td></tr>
+      <tr class="token-total"><td>Estimated cost</td><td>$0.0121</td></tr>
+      <tr><td>Count source</td><td>Reported by API</td></tr>
+    </tbody>
+  </table>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    httpx <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^0.27.0</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 20/100 · Trust 72/100 · 2 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">20<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Vulnerabilities</span><span class="impact impact-risk">+15</span></div><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">72<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-8</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card"><div class="card-title">Executive Summary</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">The 'httpx' package (version ^0.27.0) is a Python HTTP client with known critical vulnerabilities in versions prior to 0.23.0. While the current version may be patched, the presence of unresolved historical vulnerabilities and lack of transparency in licensing and maintenance raises concerns. Use with extreme caution and verify the fixed version is in use.</p></div>
+<div class="card"><div class="card-title">Secure Code Review</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap">No source code was provided for direct review, so implementation-specific risks (e.g., dangerous API usage, hardcoded secrets, or telemetry) cannot be confirmed. However, the package's vulnerability history indicates a pattern of improper input validation in core components like `httpx.URL` and `httpx.Client`, which could lead to security issues such as SSRF or request smuggling. The absence of GitHub metadata or CI/CD workflows further limits visibility into the package's security practices.</p></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings
+    <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:auto">1 CRITICAL · 1 HIGH · 1 MEDIUM</span>
+  </div>
+  
+<div class="finding">
+  <div class="finding-header">
+    <div class="finding-title">1. Critical input validation vulnerability</div>
+    <span class="badge badge-critical">CRITICAL</span>
+  </div>
+  <div class="finding-meta">
+    <span class="badge badge-ecosystem">DEPENDENCY_CVE</span>
+    <span class="badge badge-confirmed">✓ Confirmed</span>
+  </div>
+  <div class="finding-body">The package has a known critical vulnerability (GHSA-h8pj-cxx2-jfg2) affecting versions ≤1.0.0.beta0, including many 0.x releases. The flaw involves improper input validation in `httpx.URL` and `httpx.Client`, which could allow attackers to manipulate URLs or requests, leading to SSRF, request smuggling, or other injection attacks.</div>
+  <div class="finding-evidence">Vulnerability data provided: GHSA-h8pj-cxx2-jfg2, fixed in version 0.23.0. Affected versions include 0.0.1 through 0.22.0.</div>
+  <div class="finding-rec">Immediately upgrade to version 0.23.0 or later. Audit all uses of `httpx.URL` and `httpx.Client` for user-controlled input in URL construction or request parameters.</div>
+</div>
+<div class="finding">
+  <div class="finding-header">
+    <div class="finding-title">2. Unknown license</div>
+    <span class="badge badge-high">HIGH</span>
+  </div>
+  <div class="finding-meta">
+    <span class="badge badge-ecosystem">LICENSE_RISK</span>
+    <span class="badge badge-confirmed">✓ Confirmed</span>
+  </div>
+  <div class="finding-body">The package's license is listed as 'Unknown', which poses legal and compliance risks. Without a clear license, users cannot determine their rights to use, modify, or distribute the software, potentially exposing them to legal action or restrictions.</div>
+  <div class="finding-evidence">Package metadata: 'license' field is missing or marked as 'Unknown'.</div>
+  <div class="finding-rec">Contact the maintainers to clarify the license or switch to a well-licensed alternative (e.g., `requests` with MIT license).</div>
+</div>
+<div class="finding">
+  <div class="finding-header">
+    <div class="finding-title">3. Minimal adoption and testing</div>
+    <span class="badge badge-medium">MEDIUM</span>
+  </div>
+  <div class="finding-meta">
+    <span class="badge badge-ecosystem">LOW_ADOPTION_RISK</span>
+    <span class="badge badge-confirmed">✓ Confirmed</span>
+  </div>
+  <div class="finding-body">The package has ~0 weekly downloads, indicating minimal real-world usage. Low adoption increases the risk of undetected vulnerabilities, poor maintenance, or sudden abandonment, which could leave users without security updates or support.</div>
+  <div class="finding-evidence">Popularity label: 'Niche', weekly downloads: ~0 (from riskScoreBreakdown).</div>
+  <div class="finding-rec">Prefer widely adopted alternatives (e.g., `requests`, `aiohttp`) with larger communities and proven track records.</div>
+</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🕸</span> STRIDE Threat Model</div>
+  <div class="threat-level">Overall threat level: HIGH</div>
+  <div class="stride-grid">
+    <div class="stride-card"><div class="stride-cat">Spoofing</div><div class="stride-text">HIGH: Improper input validation in URL handling could allow attackers to spoof destinations or manipulate requests.</div></div>
+    <div class="stride-card"><div class="stride-cat">Tampering</div><div class="stride-text">MEDIUM: Request/response tampering is possible if user input is not properly sanitized in URL or header construction.</div></div>
+    <div class="stride-card"><div class="stride-cat">Repudiation</div><div class="stride-text">LOW: No evidence of logging or audit trails in the provided data, but this cannot be confirmed without source code.</div></div>
+    <div class="stride-card"><div class="stride-cat">Information Disclosure</div><div class="stride-text">MEDIUM: SSRF vulnerabilities could expose internal systems or sensitive data if user input is mishandled.</div></div>
+    <div class="stride-card"><div class="stride-cat">Denial of Service</div><div class="stride-text">MEDIUM: Improper input validation could lead to resource exhaustion or crashes (e.g., via malformed URLs).</div></div>
+    <div class="stride-card"><div class="stride-cat">Elevation of Privilege</div><div class="stride-text">LOW: No direct evidence of privilege escalation, but vulnerabilities in HTTP clients can sometimes be chained for broader impact.</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📜</span> License Analysis</div>
+  <div class="license-summary">The license for this package is unknown or unspecified.</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+    Risk: <strong style="color:var(--text)">HIGH</strong> &nbsp;·&nbsp;
+    Commercial use: <strong style="color:var(--text)">UNCLEAR</strong>
+  </div>
+  <div class="license-grid">
+    
+    <div class="license-cell"><h4>You Cannot</h4><ul class="license-list"><li>🚫 Use the package without legal risk (license terms are unclear)</li><li>🚫 Modify or distribute the package without potential legal consequences</li></ul></div>
+    <div class="license-cell"><h4>You Must</h4><ul class="license-list"><li>⚡ Assume all rights are reserved until the license is clarified</li><li>⚡ Seek explicit permission from the maintainers for commercial or distribution use</li></ul></div>
+  </div>
+  <div class="license-plain">Without a clear license, you have no legal right to use, modify, or share this software. This could lead to lawsuits or forced removal of the package from your projects. Always confirm the license before using any package in production.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV) <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:auto">2 found</span></div>
+  <table><thead><tr><th>ID</th><th>Severity</th><th>Title</th><th>Fixed In</th></tr></thead>
+  <tbody><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-h8pj-cxx2-jfg2" target="_blank" class="mono">GHSA-h8pj-cxx2-jfg2</a></td>
+    <td><span class="badge badge-critical">CRITICAL</span></td>
+    <td>Improper Input Validation in httpx</td>
+    <td class="mono text-green">0.23.0</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2022-183" target="_blank" class="mono">PYSEC-2022-183</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2022-183</td>
+    <td class="mono text-green">0.20.0</td>
+  </tr></tbody></table>
+</div>
+<div class="card"><div class="card-title"><span class="icon">🔄</span> Alternatives</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">1. requests</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">A simple, widely used HTTP library for Python with synchronous support.</div>
+  <div class="alt-meta">
+    <span>⭐ ~50k stars</span>
+    <span>⬇ ~50M/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">MIT-licensed, battle-tested with ~50M weekly downloads, and actively maintained by a large community. No known critical vulnerabilities in recent years.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Simple API for HTTP requests, Built-in support for sessions, cookies, and redirects, Extensive documentation and community support</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">2. aiohttp</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">An asynchronous HTTP client/server framework for Python, built on asyncio.</div>
+  <div class="alt-meta">
+    <span>⭐ ~15k stars</span>
+    <span>⬇ ~10M/wk</span>
+    <span>License: Apache-2.0</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: MODERATE</span>
+  </div>
+  <div class="alt-why">Apache-2.0 licensed, designed for async use cases, and widely adopted (~10M weekly downloads). Actively maintained with a strong focus on security.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Asynchronous I/O support, WebSocket and HTTP/2 support, Client and server functionality</div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛠</span> Remediation Steps</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Upgrade to httpx version 0.23.0 or later to resolve the critical vulnerability (GHSA-h8pj-cxx2-jfg2).</div>
+    <div class="rem-rationale">The vulnerability is critical and could lead to SSRF, request smuggling, or other attacks if user input is mishandled.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Clarify the package's license with the maintainers or switch to a well-licensed alternative (e.g., `requests` or `aiohttp`).</div>
+    <div class="rem-rationale">Unknown licenses pose legal risks and may violate organizational policies.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">SHORT_TERM</span>
+  <div>
+    <div class="rem-action">Audit all uses of `httpx.URL` and `httpx.Client` for user-controlled input in URL construction or request parameters.</div>
+    <div class="rem-rationale">The vulnerability history suggests these components are high-risk for injection attacks if not properly sanitized.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">LONG_TERM</span>
+  <div>
+    <div class="rem-action">Migrate to a more widely adopted HTTP client (e.g., `requests` or `aiohttp`) to reduce maintenance and security risks.</div>
+    <div class="rem-rationale">Low adoption increases the risk of undetected vulnerabilities and poor long-term support.</div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🪙</span> Token Usage &amp; Cost</div>
+  <table class="token-table">
+    <tbody>
+      <tr><td>Provider / Model</td><td class="mono">mistral/mistral-large-latest</td></tr>
+      <tr><td>Input tokens</td><td>3,760</td></tr>
+      <tr><td>Output tokens</td><td>1,871</td></tr>
+      <tr class="token-total"><td>Total tokens</td><td>5,631</td></tr>
+      <tr class="token-total"><td>Estimated cost</td><td>$0.0187</td></tr>
+      <tr><td>Count source</td><td>Reported by API</td></tr>
+    </tbody>
+  </table>
+</div></div>
+</details>
+<details>
+  <summary><span class="icon">📖</span> Technical Appendix &amp; Methodology</summary>
+  <div class="details-body">
+
+    <div class="appendix-section">
+      <h4>Popularity Labels</h4>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:8px">
+        For npm, PyPI, uv, pip, and pipx packages, the signal is weekly downloads.
+        For all other ecosystems, the signal is GitHub stars.
+      </p>
+      <table class="appendix-table">
+        <thead><tr><th>Label</th><th>Threshold</th><th>Description</th></tr></thead>
+        <tbody><tr><td><strong>Niche</strong></td><td class="mono text-dim">Below first threshold</td><td>Fewer than 100 weekly downloads / GitHub stars. Very limited adoption.</td></tr><tr><td><strong>Small community</strong></td><td class="mono text-dim">≥ 100 downloads / 100 stars</td><td>100–9,999 weekly downloads / GitHub stars. Growing but limited usage.</td></tr><tr><td><strong>Established</strong></td><td class="mono text-dim">≥ 10,000 downloads / 1,000 stars</td><td>10,000–99,999 weekly downloads / GitHub stars. Solid, proven usage.</td></tr><tr><td><strong>Popular</strong></td><td class="mono text-dim">≥ 100,000 downloads / 10,000 stars</td><td>100,000–999,999 weekly downloads / GitHub stars. Widely adopted.</td></tr><tr><td><strong>Industry Standard</strong></td><td class="mono text-dim">≥ 1,000,000 downloads / 50,000 stars</td><td>1,000,000+ weekly downloads / GitHub stars. Dominant in its domain.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>License Reference</h4>
+      <table class="appendix-table">
+        <thead><tr><th>SPDX ID</th><th>Type</th><th>Summary</th></tr></thead>
+        <tbody><tr><td class="mono"><strong>MIT</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Use, modify, distribute freely. Commercial use allowed.</td></tr><tr><td class="mono"><strong>Apache-2.0</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Like MIT but includes explicit patent grant.</td></tr><tr><td class="mono"><strong>BSD-2-Clause</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Minimal restrictions. Attribution required.</td></tr><tr><td class="mono"><strong>BSD-3-Clause</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Like BSD-2 but prevents use of project name for endorsement.</td></tr><tr><td class="mono"><strong>ISC</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Functionally equivalent to MIT. Widely used in npm ecosystem.</td></tr><tr><td class="mono"><strong>GPL-2.0</strong></td><td><span class="badge badge-ecosystem">Copyleft</span></td><td>Source must be open if distributed. Strong copyleft.</td></tr><tr><td class="mono"><strong>GPL-3.0</strong></td><td><span class="badge badge-ecosystem">Copyleft</span></td><td>Like GPL-2.0 with additional patent protections.</td></tr><tr><td class="mono"><strong>AGPL-3.0</strong></td><td><span class="badge badge-ecosystem">Strong Copyleft</span></td><td>GPL-3.0 + network copyleft (SaaS must open-source).</td></tr><tr><td class="mono"><strong>LGPL-2.1</strong></td><td><span class="badge badge-ecosystem">Weak Copyleft</span></td><td>Library copyleft — linking is allowed without copyleft.</td></tr><tr><td class="mono"><strong>LGPL-3.0</strong></td><td><span class="badge badge-ecosystem">Weak Copyleft</span></td><td>LGPL-2.1 + GPLv3 features.</td></tr><tr><td class="mono"><strong>MPL-2.0</strong></td><td><span class="badge badge-ecosystem">Weak Copyleft</span></td><td>File-level copyleft. Compatible with GPL.</td></tr><tr><td class="mono"><strong>SSPL-1.0</strong></td><td><span class="badge badge-ecosystem">Source Available</span></td><td>MongoDB license. Highly restrictive for SaaS use.</td></tr><tr><td class="mono"><strong>CC0-1.0</strong></td><td><span class="badge badge-ecosystem">Public Domain</span></td><td>No rights reserved. Maximum freedom for users.</td></tr><tr><td class="mono"><strong>Unlicense</strong></td><td><span class="badge badge-ecosystem">Public Domain</span></td><td>Simplified public domain dedication.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Risk Score Methodology (0–100, higher = more risk)</h4>
+      <table class="appendix-table">
+        <thead><tr><th>Factor</th><th>Max Impact</th><th>Condition</th></tr></thead>
+        <tbody>
+          <tr><td>Vulnerabilities</td><td class="mono">+40</td><td>CRITICAL CVE = +40, HIGH = +25, MEDIUM = +15, LOW = +5 (capped at 40)</td></tr>
+          <tr><td>Maintenance</td><td class="mono">+25</td><td>No commits in 1yr = +15, 6mo = +10, 3mo = +5</td></tr>
+          <tr><td>Archived repo</td><td class="mono">+20</td><td>GitHub repo is archived</td></tr>
+          <tr><td>OpenSSF Scorecard</td><td class="mono">+20</td><td>Inverse of OpenSSF score</td></tr>
+          <tr><td>License</td><td class="mono">+10</td><td>GPL/AGPL/SSPL = +10; LGPL/MPL = +5</td></tr>
+          <tr><td>Transitive CVEs</td><td class="mono">+5</td><td>Direct dependencies have known CVEs</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Trust Score Methodology (0–100, higher = more trustworthy)</h4>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:8px">
+        Trust Score starts at 100 and applies deductions mirroring risk factors,
+        then applies bonuses for positive signals:
+        &gt;1M downloads (+10), &gt;10k stars (+8), &gt;100 contributors (+5),
+        recent release within 90 days (+5), signed releases (+5).
+      </p>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Security Finding Categories</h4>
+      <table class="appendix-table">
+        <thead><tr><th>Category</th><th>Description</th></tr></thead>
+        <tbody><tr><td class="mono" style="font-size:.75rem"><strong>README_CODE_MISMATCH</strong></td><td>README claims contradict the actual source code behavior.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>SILENT_TELEMETRY</strong></td><td>Analytics or crash reporting fires automatically on import without disclosure.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>THIRD_PARTY_DATA_EXFILTRATION</strong></td><td>Data is sent to external domains unnecessarily or without user knowledge.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>INSECURE_TRANSMISSION</strong></td><td>HTTP instead of HTTPS, certificate validation disabled (rejectUnauthorized:false).</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>SENSITIVE_OUTBOUND</strong></td><td>Outbound requests include credentials, tokens, or PII in URL or request body.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>BACKGROUND_PROCESS</strong></td><td>setInterval, cron jobs, ServiceWorkers, or OS services installed at import.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>POSTINSTALL_RISK</strong></td><td>scripts.postinstall/preinstall/prepare in package.json — runs arbitrary code on install.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>EXCESSIVE_PERMISSIONS</strong></td><td>Filesystem access beyond stated purpose, raw sockets, or sudo/admin elevation.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>HARDCODED_SECRET</strong></td><td>API keys, tokens, passwords, or private keys embedded in source code.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>DANGEROUS_API_USAGE</strong></td><td>eval(), Function(), exec(), or dynamic require() with user-controlled input.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>PROTOTYPE_POLLUTION</strong></td><td>Unsafe Object.assign(target, input) or recursive merge without prototype check.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>OBFUSCATION_INDICATOR</strong></td><td>eval(atob(…)), hex-encoded strings, or obfuscated code in non-dist files.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>DEPENDENCY_CVE</strong></td><td>Known CVE found in a direct dependency of this package.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Data Sources</h4>
+      <table class="appendix-table">
+        <tbody>
+          <tr><td><strong>OSV.dev</strong></td><td>Open Source Vulnerability database — CVE and GHSA advisories</td></tr>
+          <tr><td><strong>GitHub API</strong></td><td>Repository stats, contributors, commits, releases, license, archival status</td></tr>
+          <tr><td><strong>npm Registry</strong></td><td>Download counts, version history, package metadata</td></tr>
+          <tr><td><strong>PyPI API</strong></td><td>Python package metadata, classifiers, project URLs</td></tr>
+          <tr><td><strong>crates.io API</strong></td><td>Rust crate metadata and repository links</td></tr>
+          <tr><td><strong>pub.dev API</strong></td><td>Dart/Flutter package metadata</td></tr>
+          <tr><td><strong>OpenSSF Scorecard</strong></td><td>Security hygiene scores (when available)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</details>
+<div class="footer">
+  <p>⚠️ TrustGuard AI automated analysis — verify critical findings independently before making decisions.</p>
+  <p style="margin-top:6px">Generated 2026-05-27 · TrustGuard AI Security Agent</p>
+</div>
+</body>
+</html>

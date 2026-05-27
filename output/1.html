@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TrustGuard AI — Batch Security Report</title>
+<style>*,::before,::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09090b;--surface:#18181b;--surface2:#27272a;--surface3:#3f3f46;
+  --border:#3f3f46;--border2:#27272a;
+  --text:#f4f4f5;--muted:#a1a1aa;--dim:#71717a;--faint:#52525b;
+  --indigo:#6366f1;--indigo-light:#818cf8;--indigo-dim:rgba(99,102,241,.15);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.15);
+  --amber:#f59e0b;--amber-dim:rgba(245,158,11,.15);
+  --green:#22c55e;--green-dim:rgba(34,197,94,.15);
+  --cyan:#22d3ee;
+  --font-mono:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+}
+html{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{max-width:960px;margin:0 auto;padding:32px 24px 80px}
+a{color:var(--indigo-light);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);font-size:.875em;background:var(--surface2);
+  border:1px solid var(--border2);padding:.1em .35em;border-radius:4px;color:var(--cyan)}
+pre{font-family:var(--font-mono);background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:16px;overflow-x:auto;font-size:.85em;margin:12px 0}
+
+/* ── Layout ─────────────────────────────── */
+.page-header{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
+.page-header h1{font-size:1.6rem;font-weight:800;color:var(--text);line-height:1.2}
+.page-header .meta{color:var(--muted);font-size:.85rem;margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+.card-title{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:16px;
+  display:flex;align-items:center;gap:8px}
+.card-title .icon{font-size:1.1rem}
+section{margin-bottom:20px}
+
+/* ── Scores ─────────────────────────────── */
+.scores{display:flex;flex-wrap:wrap;gap:32px}
+.score-block{min-width:200px}
+.score-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
+.score-value{font-size:2rem;font-weight:800;font-variant-numeric:tabular-nums}
+.score-value.risk{color:var(--red)}
+.score-value.trust{color:var(--green)}
+.score-sub{font-size:.75rem;color:var(--dim);margin-top:4px}
+.breakdown{margin-top:12px;display:flex;flex-direction:column;gap:4px}
+.breakdown-row{display:flex;justify-content:space-between;font-size:.75rem;
+  background:var(--surface2);border-radius:4px;padding:5px 10px}
+.breakdown-row .factor{color:var(--muted)}
+.breakdown-row .impact{font-weight:600}
+.impact-risk{color:var(--red)}
+.impact-trust-pos{color:var(--green)}
+.impact-trust-neg{color:var(--amber)}
+
+/* ── Badges ─────────────────────────────── */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.badge-critical{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.badge-high{background:rgba(249,115,22,.12);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+.badge-medium{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.badge-low{background:rgba(234,179,8,.12);color:#facc15;border:1px solid rgba(234,179,8,.3)}
+.badge-info{background:var(--indigo-dim);color:var(--indigo-light);border:1px solid rgba(99,102,241,.3)}
+.badge-confirmed{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-inferred{background:var(--surface2);color:var(--dim);border:1px solid var(--border)}
+.badge-ecosystem{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.badge-popularity{background:var(--indigo-dim);color:var(--indigo-light);border:1px solid rgba(99,102,241,.3)}
+.badge-verdict-use{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-verdict-caution{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.badge-verdict-avoid{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+
+/* ── Tables ─────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin:12px 0}
+thead tr{background:var(--surface2)}
+th{padding:8px 12px;text-align:left;font-weight:600;color:var(--muted);
+  text-transform:uppercase;font-size:.7rem;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border2);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+/* ── Finding cards ───────────────────────── */
+.finding{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px}
+.finding-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.finding-title{font-weight:600;color:var(--text);font-size:.9rem}
+.finding-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.finding-body{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:8px}
+.finding-evidence{font-family:var(--font-mono);font-size:.75rem;background:var(--surface);
+  border:1px solid var(--border);border-radius:4px;padding:8px 12px;margin:8px 0;
+  color:var(--cyan);word-break:break-all}
+.finding-rec{border-left:2px solid var(--indigo);padding-left:12px;
+  font-size:.82rem;color:var(--muted);margin-top:8px;font-style:italic}
+
+/* ── STRIDE ─────────────────────────────── */
+.stride-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.stride-grid{grid-template-columns:1fr}}
+.stride-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px}
+.stride-cat{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--indigo-light);margin-bottom:6px}
+.stride-text{font-size:.82rem;color:var(--muted);line-height:1.55}
+.threat-level{display:inline-flex;padding:3px 10px;border-radius:6px;font-size:.75rem;font-weight:700;
+  background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3);margin-bottom:16px}
+
+/* ── License ─────────────────────────────── */
+.license-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+@media(max-width:600px){.license-grid{grid-template-columns:1fr}}
+.license-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.license-cell h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.license-list li{font-size:.8rem;color:var(--text);list-style:none;padding:2px 0}
+.license-summary{font-weight:700;color:var(--text);margin-bottom:8px}
+.license-plain{border-left:2px solid var(--border);padding-left:12px;font-size:.82rem;
+  color:var(--muted);font-style:italic;margin-top:12px}
+
+/* ── Alternatives ───────────────────────── */
+.alt-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px}
+.alt-name{font-weight:700;color:var(--text);font-size:.95rem}
+.alt-desc{font-size:.82rem;color:var(--muted);margin:6px 0 10px}
+.alt-meta{display:flex;flex-wrap:wrap;gap:10px;font-size:.75rem;color:var(--dim)}
+.alt-why{border-left:2px solid var(--green);padding-left:10px;font-size:.82rem;
+  color:var(--muted);margin-top:8px}
+
+/* ── Remediation ────────────────────────── */
+.rem-item{display:flex;gap:12px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:14px;margin-bottom:10px}
+.rem-priority{flex-shrink:0;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;
+  text-transform:uppercase;align-self:flex-start}
+.priority-critical{background:var(--red-dim);color:var(--red)}
+.priority-high{background:rgba(249,115,22,.12);color:#fb923c}
+.priority-medium{background:var(--amber-dim);color:var(--amber)}
+.priority-low{background:var(--green-dim);color:var(--green)}
+.rem-action{font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:4px}
+.rem-rationale{font-size:.8rem;color:var(--muted);font-style:italic}
+
+/* ── Metadata grid ──────────────────────── */
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media(max-width:600px){.meta-grid{grid-template-columns:1fr}}
+.meta-row{display:flex;justify-content:space-between;font-size:.82rem;
+  background:var(--surface2);border-radius:4px;padding:5px 10px}
+.meta-key{color:var(--dim)}
+.meta-val{color:var(--text);font-family:var(--font-mono);font-size:.8rem;text-align:right}
+
+/* ── Token usage ────────────────────────── */
+.token-table td:first-child{color:var(--muted);width:55%}
+.token-table td:last-child{font-family:var(--font-mono);text-align:right}
+.token-total{font-weight:700}
+
+/* ── Batch summary table ────────────────── */
+.summary-table td:nth-child(3),.summary-table td:nth-child(4){font-family:var(--font-mono);font-weight:600}
+.summary-table td:nth-child(3){color:var(--red)}
+.summary-table td:nth-child(4){color:var(--green)}
+
+/* ── Collapsible sections ───────────────── */
+details{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+summary{padding:16px 20px;cursor:pointer;background:var(--surface);font-weight:700;
+  font-size:.95rem;color:var(--text);display:flex;align-items:center;gap:8px;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▶';font-size:.7rem;color:var(--dim);transition:transform .2s}
+details[open] summary::before{transform:rotate(90deg)}
+details[open] summary{border-bottom:1px solid var(--border)}
+.details-body{padding:20px;background:var(--surface)}
+
+/* ── Misc ───────────────────────────────── */
+.divider{border:none;border-top:1px solid var(--border);margin:28px 0}
+.text-muted{color:var(--muted)}
+.text-dim{color:var(--dim)}
+.text-red{color:var(--red)}
+.text-green{color:var(--green)}
+.text-amber{color:var(--amber)}
+.text-indigo{color:var(--indigo-light)}
+.mono{font-family:var(--font-mono)}
+.footer{border-top:1px solid var(--border);padding-top:24px;margin-top:40px;
+  text-align:center;font-size:.75rem;color:var(--faint)}
+.clean-findings{background:var(--green-dim);border:1px solid rgba(34,197,94,.3);
+  border-radius:8px;padding:16px;color:var(--green);font-size:.88rem;text-align:center}</style>
+</head>
+<body>
+<div class="page-header">
+  <h1>TrustGuard AI — Batch Security Report</h1>
+  <div class="meta">
+    Generated 2026-05-26 · 5 packages analysed
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📊</span> Batch Summary</div>
+  <table class="summary-table">
+    <thead><tr><th>Package</th><th>Version</th><th>Ecosystem</th><th>Risk</th><th>Trust</th><th>CVEs</th><th>Verdict</th></tr></thead>
+    <tbody><tr>
+        <td class="mono">fastapi</td>
+        <td class="mono text-dim">^0.111.0</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">13/100</span></td>
+        <td style="color:var(--green)">75/100</td>
+        <td>4</td>
+        <td>–</td>
+      </tr><tr>
+        <td class="mono">sqlalchemy</td>
+        <td class="mono text-dim">^2.0.30</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-high">45/100</span></td>
+        <td style="color:var(--green)">62/100</td>
+        <td>6</td>
+        <td>–</td>
+      </tr><tr>
+        <td class="mono">psycopg</td>
+        <td class="mono text-dim">^3.2.0</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">5/100</span></td>
+        <td style="color:var(--green)">78/100</td>
+        <td>0</td>
+        <td>–</td>
+      </tr><tr>
+        <td class="mono">alembic</td>
+        <td class="mono text-dim">^1.13.1</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">5/100</span></td>
+        <td style="color:var(--green)">78/100</td>
+        <td>0</td>
+        <td>–</td>
+      </tr><tr>
+        <td class="mono">fastapi-pagination</td>
+        <td class="mono text-dim">^0.12.13</td>
+        <td class="badge-ecosystem"><span class="badge badge-ecosystem">pypi</span></td>
+        <td><span class="badge-low">5/100</span></td>
+        <td style="color:var(--green)">78/100</td>
+        <td>0</td>
+        <td>–</td>
+      </tr></tbody>
+  </table>
+</div>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    fastapi <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^0.111.0</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 13/100 · Trust 75/100 · 4 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">13<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Vulnerabilities</span><span class="impact impact-risk">+8</span></div><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">75<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-5</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV) <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:auto">4 found</span></div>
+  <table><thead><tr><th>ID</th><th>Severity</th><th>Title</th><th>Fixed In</th></tr></thead>
+  <tbody><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-8h2j-cgx8-6xv7" target="_blank" class="mono">GHSA-8h2j-cgx8-6xv7</a></td>
+    <td><span class="badge badge-high">HIGH</span></td>
+    <td>Cross-Site Request Forgery (CSRF) in FastAPI</td>
+    <td class="mono text-green">0.65.2</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/MAL-2026-4750" target="_blank" class="mono">MAL-2026-4750</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>Malicious code in fastapi (PyPI)</td>
+    <td class="mono text-green">Unknown</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2021-100" target="_blank" class="mono">PYSEC-2021-100</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2021-100</td>
+    <td class="mono text-green">fa7e3c996edf2d5482fff8f9d890ac2390dede4d</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2024-38" target="_blank" class="mono">PYSEC-2024-38</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2024-38</td>
+    <td class="mono text-green">9d34ad0ee8a0dfbbcce06f76c2d5d851085024fc</td>
+  </tr></tbody></table>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    sqlalchemy <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^2.0.30</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 45/100 · Trust 62/100 · 6 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">45<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Vulnerabilities</span><span class="impact impact-risk">+40</span></div><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">62<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-18</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV) <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:auto">6 found</span></div>
+  <table><thead><tr><th>ID</th><th>Severity</th><th>Title</th><th>Fixed In</th></tr></thead>
+  <tbody><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-38fc-9xqv-7f7q" target="_blank" class="mono">GHSA-38fc-9xqv-7f7q</a></td>
+    <td><span class="badge badge-critical">CRITICAL</span></td>
+    <td>SQLAlchemy is vulnerable to SQL Injection via group_by parameter </td>
+    <td class="mono text-green">1.2.19</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-887w-45rq-vxgf" target="_blank" class="mono">GHSA-887w-45rq-vxgf</a></td>
+    <td><span class="badge badge-critical">CRITICAL</span></td>
+    <td>SQLAlchemy vulnerable to SQL Injection via order_by parameter</td>
+    <td class="mono text-green">1.3.0b3</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/GHSA-hfg2-wf6j-x53p" target="_blank" class="mono">GHSA-hfg2-wf6j-x53p</a></td>
+    <td><span class="badge badge-critical">CRITICAL</span></td>
+    <td>SQLAlchemy vulnerable to SQL injection</td>
+    <td class="mono text-green">0.7.0b4</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2012-9" target="_blank" class="mono">PYSEC-2012-9</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2012-9</td>
+    <td class="mono text-green">0.7.0</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2019-123" target="_blank" class="mono">PYSEC-2019-123</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2019-123</td>
+    <td class="mono text-green">1.2.18</td>
+  </tr><tr>
+    <td><a href="https://osv.dev/vulnerability/PYSEC-2019-124" target="_blank" class="mono">PYSEC-2019-124</a></td>
+    <td><span class="badge badge-info">UNKNOWN</span></td>
+    <td>PYSEC-2019-124</td>
+    <td class="mono text-green">1.2.18</td>
+  </tr></tbody></table>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    psycopg <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^3.2.0</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 5/100 · Trust 78/100 · 0 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    alembic <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^1.13.1</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 5/100 · Trust 78/100 · 0 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div></div>
+</details>
+<details>
+  <summary>
+    <span class="badge badge-ecosystem">pypi</span>
+    fastapi-pagination <span class="mono text-dim" style="font-size:.8rem;font-weight:400">^0.12.13</span>
+    <span style="margin-left:auto;font-size:.75rem;font-weight:400;color:var(--dim)">
+      Risk 5/100 · Trust 78/100 · 0 CVEs
+    </span>
+  </summary>
+  <div class="details-body"><div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div></div>
+</details>
+<div class="footer">
+  <p>⚠️ TrustGuard AI automated analysis — verify critical findings independently before making decisions.</p>
+  <p style="margin-top:6px">Generated 2026-05-26 · TrustGuard AI Security Agent</p>
+</div>
+</body>
+</html>

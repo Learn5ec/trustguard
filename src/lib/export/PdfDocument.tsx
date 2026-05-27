@@ -1,6 +1,8 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import type { PackageAnalysisData, AnalysisReport, TokenUsage, SecurityFinding } from '../../types/analysis';
 import { formatCost } from '../llm/tokenPricing';
+import { formatTimestamp, formatDuration } from '../utils/timestamps';
+import type { TimezoneId } from '../utils/timestamps';
 
 // Color palette matching the dark UI
 const C = {
@@ -89,6 +91,26 @@ const s = StyleSheet.create({
   prioImmediate: { backgroundColor: C.redBg, color: C.red, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, fontSize: 7, fontWeight: 'bold' },
   prioShort: { backgroundColor: C.yellowBg, color: C.yellow, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, fontSize: 7, fontWeight: 'bold' },
   prioLong: { backgroundColor: C.cyanBg, color: C.cyan, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, fontSize: 7, fontWeight: 'bold' },
+  // Deprecated / unmaintained warning banner
+  warnDeprecated: { backgroundColor: '#1a0505', borderWidth: 1, borderColor: C.redBorder, borderRadius: 6, padding: 10, marginBottom: 12 },
+  warnUnmaintained: { backgroundColor: '#1a1005', borderWidth: 1, borderColor: C.yellowBorder, borderRadius: 6, padding: 10, marginBottom: 12 },
+  warnPartialData: { backgroundColor: '#1a1005', borderWidth: 1, borderColor: C.yellowBorder, borderRadius: 6, padding: 10, marginBottom: 12 },
+  warnNoData: { backgroundColor: '#1a0505', borderWidth: 1, borderColor: C.redBorder, borderRadius: 6, padding: 10, marginBottom: 12 },
+  warnTitle: { fontSize: 9, fontWeight: 'bold', marginBottom: 3 },
+  warnBody: { fontSize: 8, lineHeight: 1.4 },
+  // Attribution chip
+  attrChip: { backgroundColor: '#111114', borderWidth: 1, borderColor: C.cardBorder, borderRadius: 4, padding: 5, marginBottom: 6 },
+  attrLabel: { fontSize: 7, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  attrValue: { fontSize: 8, color: C.accent },
+  attrMuted: { fontSize: 7, color: '#52525b' },
+  // Commercial badge
+  commAllowed: { color: C.green },
+  commRestricted: { color: C.red },
+  commNeeded: { color: C.yellow },
+  // Appendix
+  appendixTitle: { fontSize: 10, fontWeight: 'bold', color: C.textBright, marginBottom: 6 },
+  appendixSub: { fontSize: 9, fontWeight: 'bold', color: C.accent, marginTop: 8, marginBottom: 4 },
+  appendixBody: { fontSize: 8, color: C.textMuted, lineHeight: 1.5 },
 });
 
 const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const;
@@ -129,9 +151,13 @@ function getSevStyle(sev: string) {
 
 function getVerdictStyle(v?: string) {
   if (!v) return s.verdictCaution;
-  if (v === 'USE') return s.verdictUse;
-  if (v === 'AVOID' || v === 'REPLACE_SOON') return s.verdictAvoid;
-  return s.verdictCaution;
+  switch (v) {
+    case 'USE':             return s.verdictUse;
+    case 'AVOID':           return s.verdictAvoid;
+    case 'REPLACE_SOON':    return s.verdictCaution; // amber — not red
+    case 'USE_WITH_CAUTION':return s.verdictCaution;
+    default:                return s.verdictCaution;
+  }
 }
 
 function getPrioStyle(p: string) {
@@ -209,10 +235,13 @@ interface Props {
   data: Partial<PackageAnalysisData>;
   report: Partial<AnalysisReport> | null;
   tokenUsage?: TokenUsage | null;
+  timezone?: TimezoneId;
 }
 
-export function TrustGuardPdfDocument({ data, report, tokenUsage }: Props) {
-  const dateStr = new Date().toLocaleDateString();
+export function TrustGuardPdfDocument({ data, report, tokenUsage, timezone = 'IST' }: Props) {
+  const dateStr = data.reportGeneratedAt
+    ? formatTimestamp(data.reportGeneratedAt, timezone)
+    : new Date().toLocaleDateString();
   const riskColor  = (data.riskScore  ?? 0) >= 50 ? C.red   : (data.riskScore  ?? 0) >= 20 ? C.yellow : C.green;
   const trustColor = (data.trustScore ?? 0) >= 70 ? C.green : (data.trustScore ?? 0) >= 40 ? C.yellow : C.red;
 
@@ -240,6 +269,40 @@ export function TrustGuardPdfDocument({ data, report, tokenUsage }: Props) {
       {/* ── PAGE 1: Header · Scores · Executive Summary · Metadata ── */}
       <Page size="A4" style={s.page}>
 
+        {/* Data Completeness Warning */}
+        {data.dataCompleteness && data.dataCompleteness !== 'FULL' && (
+          <View style={data.dataCompleteness === 'NONE' ? s.warnNoData : s.warnPartialData}>
+            <Text style={[s.warnTitle, { color: data.dataCompleteness === 'NONE' ? C.red : C.yellow }]}>
+              {data.dataCompleteness === 'NONE' ? 'NO DATA' : data.dataCompleteness === 'METADATA_ONLY' ? 'METADATA ONLY' : 'PARTIAL DATA'}
+            </Text>
+            <Text style={[s.warnBody, { color: data.dataCompleteness === 'NONE' ? '#fca5a5' : '#fde68a' }]}>
+              {data.dataCompleteness === 'PARTIAL'
+                ? 'Some data sources were unavailable. Scores may be less accurate.'
+                : data.dataCompleteness === 'METADATA_ONLY'
+                ? 'Only registry metadata was available. No GitHub activity or download statistics.'
+                : 'Could not retrieve meaningful data. Verify the package name and ecosystem.'}
+            </Text>
+          </View>
+        )}
+
+        {/* Deprecated / Unmaintained Warning */}
+        {data.isDeprecated && (
+          <View style={s.warnDeprecated}>
+            <Text style={[s.warnTitle, { color: C.red }]}>🚫 DEPRECATED PACKAGE</Text>
+            <Text style={[s.warnBody, { color: '#fca5a5' }]}>
+              {data.deprecationMessage || 'This package has been marked as deprecated and is no longer maintained.'}
+            </Text>
+          </View>
+        )}
+        {!data.isDeprecated && data.isUnmaintained && (
+          <View style={s.warnUnmaintained}>
+            <Text style={[s.warnTitle, { color: C.yellow }]}>⚠ UNMAINTAINED PACKAGE</Text>
+            <Text style={[s.warnBody, { color: '#fde68a' }]}>
+              No commits for 3+ years. This package may no longer receive security updates.
+            </Text>
+          </View>
+        )}
+
         {/* Header */}
         <View style={s.headerBar}>
           <Text style={s.badge}>{(data.ecosystem || 'npm').toUpperCase()}</Text>
@@ -254,6 +317,63 @@ export function TrustGuardPdfDocument({ data, report, tokenUsage }: Props) {
             </Text>
           )}
         </View>
+
+        {/* Repository Attribution */}
+        {(data.resolvedGithubUrl || data.resolvedRegistryUrl) && (
+          <View style={s.attrChip}>
+            <Text style={s.attrLabel}>Source Attribution</Text>
+            {/* Confidence */}
+            {data.resolverConfidence && (() => {
+              const conf = data.resolverConfidence!;
+              const confLabels: Record<string, string> = {
+                VERIFIED: '✓ VERIFIED', HIGH: '↑ HIGH', MEDIUM: '~ MEDIUM', LOW: '↓ LOW', UNRESOLVED: '? UNRESOLVED',
+              };
+              const confColors: Record<string, string> = {
+                VERIFIED: '#4ade80', HIGH: '#6ee7b7', MEDIUM: '#fbbf24', LOW: '#fb923c', UNRESOLVED: '#f87171',
+              };
+              return (
+                <Text style={[s.attrValue, { color: confColors[conf] || '#a1a1aa', marginBottom: 4 }]}>
+                  {'Source Confidence: '}{confLabels[conf] || conf}
+                </Text>
+              );
+            })()}
+            {data.resolvedGithubUrl && (
+              <Text style={s.attrValue}>
+                {'Repository: '}{data.resolvedGithubUrl}
+                {data.resolvedVia ? `  (via ${data.resolvedVia.replace(/_/g, ' ')})` : ''}
+              </Text>
+            )}
+            {/* Version-specific release link */}
+            {data.resolvedGithubUrl && data.version && data.version !== 'latest' && (
+              <Text style={[s.attrValue, { marginTop: 2, color: '#a5b4fc' }]}>
+                {'Analyzed version: '}
+                {data.resolvedGitRef
+                  ? `${data.resolvedGithubUrl}/releases/tag/${data.resolvedGitRef}`
+                  : `${data.resolvedGithubUrl}/releases (v${data.version})`}
+              </Text>
+            )}
+            {data.resolvedRegistryUrl && (
+              <Text style={[s.attrMuted, { marginTop: 2 }]}>
+                {'Registry: '}{data.resolvedRegistryUrl}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Scan Timestamps */}
+        {(data.scanStartedAt || data.scanEndedAt) && (
+          <View style={[s.attrChip, { marginBottom: 12 }]}>
+            <Text style={s.attrLabel}>Scan Timing</Text>
+            {data.scanStartedAt && (
+              <Text style={s.attrValue}>Started: {formatTimestamp(data.scanStartedAt, timezone)}</Text>
+            )}
+            {data.scanStartedAt && data.scanEndedAt && (
+              <Text style={[s.attrMuted, { marginTop: 2 }]}>
+                Duration: {formatDuration(data.scanStartedAt, data.scanEndedAt)}
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Score Cards */}
         <View style={[s.row, { marginBottom: 12 }]}>
@@ -337,6 +457,33 @@ export function TrustGuardPdfDocument({ data, report, tokenUsage }: Props) {
             )}
             {data.packageStats?.dependentsCount !== undefined && (
               <MetaItem label="Dependents" value={`~${data.packageStats.dependentsCount.toLocaleString()}`} />
+            )}
+            {/* Commercial classification */}
+            {data.commercialModel && data.commercialModel !== 'unknown' && (
+              <MetaItem label="Commercial Model" value={
+                data.commercialModel === 'open-source' ? 'Open-Source'
+                : data.commercialModel === 'freemium' ? 'Freemium'
+                : data.commercialModel === 'paid' ? 'Paid'
+                : data.commercialModel
+              } />
+            )}
+            {data.commercialUseClassification && data.commercialUseClassification !== 'unknown' && (
+              <View style={s.metaRow}>
+                <Text style={s.metaLabel}>Commercial Use</Text>
+                <Text style={[s.metaValue,
+                  data.commercialUseClassification === 'allowed' ? s.commAllowed
+                  : data.commercialUseClassification === 'restricted' ? s.commRestricted
+                  : s.commNeeded
+                ]}>
+                  {data.commercialUseClassification === 'allowed' ? '✓ Allowed'
+                    : data.commercialUseClassification === 'restricted' ? '✗ Restricted'
+                    : '⚠ Needs Permission'}
+                </Text>
+              </View>
+            )}
+            {/* License SPDX */}
+            {(data.license?.spdxId || data.github?.license?.spdxId) && (
+              <MetaItem label="License (SPDX)" value={data.license?.spdxId || data.github?.license?.spdxId} />
             )}
           </View>
         )}
@@ -482,29 +629,59 @@ export function TrustGuardPdfDocument({ data, report, tokenUsage }: Props) {
       <Page size="A4" style={s.page}>
 
         {/* Vulnerabilities Table */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Known Vulnerabilities ({data.vulnerabilities?.length || 0})</Text>
-          {(!data.vulnerabilities || data.vulnerabilities.length === 0) ? (
-            <Text style={[s.bodyText, { color: C.green }]}>No known vulnerabilities found.</Text>
-          ) : (
-            <View>
-              <View style={s.tableHeader}>
-                <Text style={[s.thText, { width: '22%' }]}>ID</Text>
-                <Text style={[s.thText, { width: '14%' }]}>Severity</Text>
-                <Text style={[s.thText, { width: '44%' }]}>Title</Text>
-                <Text style={[s.thText, { width: '20%' }]}>Fixed In</Text>
-              </View>
-              {data.vulnerabilities.map((v, i) => (
-                <View key={i} style={s.tableRow}>
-                  <Text style={[s.tdText, { width: '22%', color: C.accent }]}>{v.id}</Text>
-                  <Text style={[s.tdText, { width: '14%' }, getSevStyle(v.severity)]}>{v.severity}</Text>
-                  <Text style={[s.tdText, { width: '44%' }]}>{v.title}</Text>
-                  <Text style={[s.tdText, { width: '20%' }]}>{v.fixedInVersion || 'None'}</Text>
+        {(() => {
+          const vulns = data.vulnerabilities || [];
+          const hasApplicability = vulns.some(v => v.isApplicable !== undefined);
+          const fixedCount = hasApplicability ? vulns.filter(v => v.isApplicable === false).length : 0;
+          const applicableCount = vulns.length - fixedCount;
+          const countLabel = hasApplicability && fixedCount > 0
+            ? `${vulns.length} total · ${applicableCount} applicable · ${fixedCount} already fixed`
+            : `${vulns.length}`;
+          return (
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>Known Vulnerabilities ({countLabel})</Text>
+              {vulns.length === 0 ? (
+                <Text style={[s.bodyText, { color: C.green }]}>No known vulnerabilities found.</Text>
+              ) : (
+                <View>
+                  {hasApplicability && fixedCount > 0 && (
+                    <Text style={[s.mutedText, { marginBottom: 4, fontSize: 7 }]}>
+                      Dimmed rows are already patched in your installed version.
+                    </Text>
+                  )}
+                  <View style={s.tableHeader}>
+                    <Text style={[s.thText, { width: '20%' }]}>ID</Text>
+                    <Text style={[s.thText, { width: '12%' }]}>Severity</Text>
+                    <Text style={[s.thText, { width: hasApplicability ? '38%' : '50%' }]}>Title</Text>
+                    <Text style={[s.thText, { width: '16%' }]}>Fixed In</Text>
+                    {hasApplicability && <Text style={[s.thText, { width: '14%' }]}>Status</Text>}
+                  </View>
+                  {vulns.map((v, i) => {
+                    const notApplicable = v.isApplicable === false;
+                    const rowOpacity = notApplicable ? 0.4 : 1;
+                    const statusColor = notApplicable ? C.green : C.red;
+                    const statusText = v.isApplicable === false ? '✓ Fixed'
+                      : v.isApplicable === true ? '⚠ Applies'
+                      : '—';
+                    return (
+                      <View key={i} style={[s.tableRow, { opacity: rowOpacity }]}>
+                        <Text style={[s.tdText, { width: '20%', color: C.accent }]}>{v.id}</Text>
+                        <Text style={[s.tdText, { width: '12%' }, getSevStyle(v.severity)]}>{v.severity}</Text>
+                        <Text style={[s.tdText, { width: hasApplicability ? '38%' : '50%' }]}>{v.title}</Text>
+                        <Text style={[s.tdText, { width: '16%' }]}>{v.fixedInVersion || 'None'}</Text>
+                        {hasApplicability && (
+                          <Text style={[s.tdText, { width: '14%', color: statusColor, fontWeight: 'bold' }]}>
+                            {statusText}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
-              ))}
+              )}
             </View>
-          )}
-        </View>
+          );
+        })()}
 
         {/* Alternatives */}
         {report?.alternatives && report.alternatives.length > 0 && (
@@ -563,6 +740,70 @@ export function TrustGuardPdfDocument({ data, report, tokenUsage }: Props) {
         <View style={s.footer}>
           <Text>TrustGuard AI provides automated analysis for developer due-diligence. Verify critical findings independently.</Text>
           <Text style={{ marginTop: 4 }}>Generated {dateStr} · TrustGuard AI Security Agent</Text>
+        </View>
+      </Page>
+
+      {/* ── PAGE 5: Technical Appendix ── */}
+      <Page size="A4" style={s.page}>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Technical Appendix</Text>
+
+          {/* Popularity Labels */}
+          <Text style={s.appendixSub}>Popularity Labels</Text>
+          <Text style={s.appendixBody}>
+            Labels are assigned based on weekly downloads (npm/PyPI) or GitHub stars (all other ecosystems).{'\n'}
+            • Niche: &lt;100 stars / &lt;100 downloads/wk{'\n'}
+            • Small community: 100–10K stars / 100–10K downloads/wk{'\n'}
+            • Established: 10K–100K stars / 10K–100K downloads/wk{'\n'}
+            • Popular: 100K–1M stars / 100K–1M downloads/wk{'\n'}
+            • Industry Standard: 1M+ stars / 1M+ downloads/wk
+          </Text>
+
+          {/* Risk Score Methodology */}
+          <Text style={s.appendixSub}>Risk Score Methodology (0–100)</Text>
+          <Text style={s.appendixBody}>
+            Risk Score = Vulnerabilities (0–40) + Maintenance (0–25) + Archived (+20) + OpenSSF Scorecard (0–20) + License (0–10) + Transitive CVEs (0–5).{'\n'}
+            Higher scores indicate MORE risk. A score of 0 is safest. Scores above 50 are High Risk.
+          </Text>
+
+          {/* Trust Score Methodology */}
+          <Text style={s.appendixSub}>Trust Score Methodology (0–100)</Text>
+          <Text style={s.appendixBody}>
+            Trust Score starts at 100. Deductions for high risk scores, low adoption, single maintainer, long inactivity, no scorecard data. Bonuses for active development, high adoption (&gt;100K downloads), and clean OpenSSF scorecard (&gt;7/10).
+          </Text>
+
+          {/* 13-Category Security Findings */}
+          <Text style={s.appendixSub}>Security Finding Categories (13)</Text>
+          <Text style={s.appendixBody}>
+            {'README_CODE_MISMATCH, SILENT_TELEMETRY, THIRD_PARTY_DATA_EXFILTRATION,\n'}
+            {'INSECURE_TRANSMISSION, SENSITIVE_OUTBOUND, BACKGROUND_PROCESS,\n'}
+            {'POSTINSTALL_RISK, EXCESSIVE_PERMISSIONS, HARDCODED_SECRET,\n'}
+            {'DANGEROUS_API_USAGE, PROTOTYPE_POLLUTION, OBFUSCATION_INDICATOR, DEPENDENCY_CVE'}
+          </Text>
+
+          {/* License Reference */}
+          <Text style={s.appendixSub}>Common License Reference</Text>
+          <Text style={s.appendixBody}>
+            MIT, Apache-2.0, ISC, BSD-2-Clause, BSD-3-Clause → Permissive / Commercial use ALLOWED{'\n'}
+            GPL-2.0, GPL-3.0, AGPL-3.0, SSPL-1.0 → Strong copyleft / Commercial use RESTRICTED{'\n'}
+            LGPL-2.1, LGPL-3.0, MPL-2.0, EPL-2.0 → Weak copyleft / Commercial use NEEDS PERMISSION{'\n'}
+            Proprietary / Commercial → Paid license / Contact vendor
+          </Text>
+
+          {/* Data Sources */}
+          <Text style={s.appendixSub}>Data Sources</Text>
+          <Text style={s.appendixBody}>
+            {'• Vulnerability data: OSV.dev (Open Source Vulnerabilities)\n'}
+            {'• Repository metadata: GitHub REST API (api.github.com)\n'}
+            {'• Security posture: OpenSSF Scorecard (securityscorecards.dev)\n'}
+            {'• Package metadata: Official registry APIs (npm, PyPI, crates.io, etc.)\n'}
+            {'• AI analysis: Configurable LLM provider (OpenAI / Anthropic / Gemini / Ollama)\n'}
+            {'• Source code: GitHub Contents API / unpkg.com (npm only)'}
+          </Text>
+        </View>
+
+        <View style={s.footer}>
+          <Text>TrustGuard AI — Technical Appendix · Generated {dateStr}</Text>
         </View>
       </Page>
     </Document>

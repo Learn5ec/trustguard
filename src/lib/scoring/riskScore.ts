@@ -9,15 +9,18 @@ export function calculateRiskScore(data: Partial<PackageAnalysisData>): { score:
   const breakdown: ScoreBreakdown[] = [];
 
   // Vulnerability component (0-40 points)
+  // Only count vulnerabilities that are applicable to the installed version.
+  // When isApplicable is undefined (no version-specific query was possible), include the vuln.
   if (data.vulnerabilities && data.vulnerabilities.length > 0) {
-    const criticalCount = data.vulnerabilities.filter((v) => v.severity === 'CRITICAL').length;
-    const highCount = data.vulnerabilities.filter((v) => v.severity === 'HIGH').length;
-    const medCount = data.vulnerabilities.filter((v) => v.severity === 'MEDIUM').length;
-    
+    const applicableVulns = data.vulnerabilities.filter((v) => v.isApplicable !== false);
+    const criticalCount = applicableVulns.filter((v) => v.severity === 'CRITICAL').length;
+    const highCount = applicableVulns.filter((v) => v.severity === 'HIGH').length;
+    const medCount = applicableVulns.filter((v) => v.severity === 'MEDIUM').length;
+
     const vulnScore = Math.min(40, criticalCount * 15 + highCount * 8 + medCount * 3);
     if (vulnScore > 0) {
       score += vulnScore;
-      breakdown.push({ factor: 'Vulnerabilities', impact: vulnScore, description: `Found ${criticalCount} critical, ${highCount} high, and ${medCount} medium vulnerabilities.` });
+      breakdown.push({ factor: 'Vulnerabilities', impact: vulnScore, description: `Found ${criticalCount} critical, ${highCount} high, and ${medCount} medium applicable vulnerabilities.` });
     }
   }
 

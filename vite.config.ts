@@ -172,6 +172,11 @@ function modelsProxyPlugin(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), modelsProxyPlugin()],
+  define: {
+    // @iarna/toml uses Node.js `global` (global.Date, global.BigInt, global.Buffer).
+    // Polyfill it as globalThis so the browser parser works without crashing.
+    global: 'globalThis',
+  },
   server: {
     host: '192.168.7.109',
     port: 23232,
