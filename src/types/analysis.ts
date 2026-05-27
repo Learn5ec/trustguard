@@ -1,4 +1,7 @@
-export type Ecosystem = 'npm' | 'pypi' | 'go' | 'maven' | 'nuget' | 'ruby' | 'rust' | 'pub' | 'github' | 'unknown';
+export type Ecosystem = 'npm' | 'pypi' | 'go' | 'maven' | 'nuget' | 'ruby' | 'rust' | 'pub' | 'github' | 'hex' | 'packagist' | 'conda' | 'uv' | 'pip' | 'pipx' | 'unknown';
+
+/** Confidence level for how reliably the GitHub URL and registry URL were resolved */
+export type ResolverConfidence = 'VERIFIED' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNRESOLVED';
 
 export interface ScoreBreakdown {
   factor: string;
@@ -23,6 +26,23 @@ export interface PackageAnalysisData {
   trustScore: number;
   trustScoreBreakdown?: ScoreBreakdown[];
   popularityLabel?: string;          // NEW - "Niche" | "Small community" | "Established" | "Popular" | "Industry Standard"
+  resolvedGithubUrl?: string;         // Canonical GitHub URL actually analyzed
+  resolvedVia?: 'direct_url' | 'registry_lookup' | 'user_input'; // How the repo URL was resolved
+  resolvedRegistryUrl?: string;       // The registry API URL contacted (or attempted)
+  resolvedGitRef?: string;            // Confirmed git tag used for source fetch (e.g. "v0.111.0" or "0.111.0")
+  resolverConfidence?: ResolverConfidence; // How reliably was the GitHub URL resolved
+  /** How complete the data is — FULL means all APIs responded */
+  dataCompleteness?: 'FULL' | 'PARTIAL' | 'METADATA_ONLY' | 'NONE';
+  /** When the current version was first published on the registry (e.g. PyPI upload_time) */
+  latestVersionPublishedAt?: Date;
+  scanStartedAt?: string;             // ISO timestamp when scan began
+  scanEndedAt?: string;               // ISO timestamp when scan ended
+  reportGeneratedAt?: string;         // ISO timestamp when report was generated
+  isDeprecated?: boolean;             // Package is marked deprecated
+  isUnmaintained?: boolean;           // No commits for 3+ years
+  deprecationMessage?: string;        // Deprecation notice text
+  commercialModel?: 'open-source' | 'freemium' | 'paid' | 'unknown'; // Licensing model
+  commercialUseClassification?: 'allowed' | 'restricted' | 'needs-permission' | 'unknown'; // Commercial use
 }
 
 export interface Vulnerability {
@@ -40,6 +60,10 @@ export interface Vulnerability {
   references: string[];
   isTransitive: boolean;
   source: 'OSV' | 'NVD' | 'GitHub Advisory';
+  /** false = fixed in a version ≤ the installed version (already patched) */
+  isApplicable?: boolean;
+  /** Human-readable note explaining why this CVE is or isn't applicable */
+  applicabilityNote?: string;
 }
 
 export interface GitHubStats {

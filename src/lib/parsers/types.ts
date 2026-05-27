@@ -12,6 +12,7 @@ export interface ParsedDependency {
 }
 
 export interface ManifestParser {
+  ecosystem?: string;
   canParse: (filename: string) => boolean;
-  parse: (content: string) => ParsedDependency[];
+  parse: (content: string, filename?: string) => ParsedDependency[];
 }

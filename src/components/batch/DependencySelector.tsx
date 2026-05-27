@@ -1,11 +1,18 @@
-
 import { useBatchStore } from '../../store/batchStore';
-import { CheckSquare, Square, Play, X } from 'lucide-react';
+import { useSettingsStore } from '../../store/settingsStore';
+import { LLMKeyManager } from '../../lib/keyManager';
+import { CheckSquare, Square, Play, X, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 export function DependencySelector() {
   const { items, toggleSelection, toggleAll, runAnalysis, resetBatch } = useBatchStore();
-  
+  const settings = useSettingsStore();
+
   const selectedCount = items.filter(i => i.selected).length;
+
+  // Pre-flight: check if an LLM API key is available
+  const isOllama = settings.llmProvider === 'ollama';
+  const apiKey   = isOllama ? 'local' : LLMKeyManager.get(settings.llmProvider);
+  const hasKey   = Boolean(apiKey);
 
   return (
     <div className="w-full max-w-4xl mx-auto mt-8 bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
@@ -18,6 +25,26 @@ export function DependencySelector() {
           <X className="w-6 h-6" />
         </button>
       </div>
+
+      {/* API key status banner */}
+      {hasKey ? (
+        <div className="px-6 py-3 bg-green-950/30 border-b border-green-900/40 flex items-center gap-2 text-sm text-green-400">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          <span>
+            Full AI analysis enabled — <span className="font-mono">{settings.llmProvider}/{settings.llmModel}</span>.
+            Each package will receive an executive summary, STRIDE threat model, security findings, alternatives &amp; remediation steps.
+          </span>
+        </div>
+      ) : (
+        <div className="px-6 py-3 bg-amber-950/30 border-b border-amber-900/40 flex items-start gap-2 text-sm text-amber-400">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            <strong>No API key configured</strong> — analysis will run in <strong>metadata-only mode</strong> (OSV CVEs + risk/trust scores only).
+            No AI executive summary, STRIDE threat model, security findings, or remediation will be generated.
+            Configure your key in <strong>Settings</strong> (⚙ top-right) before running for full AI reports.
+          </span>
+        </div>
+      )}
 
       <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex space-x-4">
         <button 

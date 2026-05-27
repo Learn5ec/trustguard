@@ -20,7 +20,9 @@ interface SettingsState {
   nvdKey: string | null;
   includeTransitive: boolean;
   verboseThreatModel: boolean;
-  
+  timezone: 'IST' | 'UTC' | 'GMT' | 'EST' | 'EDT';
+  setTimezone: (tz: 'IST' | 'UTC' | 'GMT' | 'EST' | 'EDT') => void;
+
   availableModels: string[];
   isLoadingModels: boolean;
   modelsError: string | null;
@@ -41,7 +43,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   nvdKey: null,
   includeTransitive: false,
   verboseThreatModel: false,
-  
+  timezone: 'IST',
+
   availableModels: LLM_PROVIDERS['openai']?.models || [],
   isLoadingModels: false,
   modelsError: null,
@@ -55,7 +58,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setNvdKey: (key) => set({ nvdKey: key }),
   setIncludeTransitive: (include) => set({ includeTransitive: include }),
   setVerboseThreatModel: (verbose) => set({ verboseThreatModel: verbose }),
-  
+  setTimezone: (tz) => set({ timezone: tz }),
+
   fetchAvailableModels: async (provider, apiKey) => {
     const key = apiKey || (provider === 'ollama' ? 'local' : LLMKeyManager.get(provider));
     

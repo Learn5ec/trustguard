@@ -25,17 +25,19 @@ export function Header() {
   const [privateRepoTipOpen, setPrivateRepoTipOpen] = useState(false);
   const tipRef = useRef<HTMLDivElement>(null);
   
-  const { 
-    llmProvider, 
-    llmModel, 
-    setLLMProvider, 
-    setLLMModel, 
-    githubToken, 
+  const {
+    llmProvider,
+    llmModel,
+    setLLMProvider,
+    setLLMModel,
+    githubToken,
     setGithubToken,
     availableModels,
     isLoadingModels,
     modelsError,
-    fetchAvailableModels
+    fetchAvailableModels,
+    timezone,
+    setTimezone,
   } = useSettingsStore();
   
   const resetAnalysis = useAnalysisStore(state => state.reset);
@@ -272,6 +274,27 @@ export function Header() {
                 />
                 <p className="text-xs text-zinc-500 mt-2">
                   Increases GitHub API rate limit from 60 → 5,000 req/hour. Required for private repos.
+                </p>
+              </div>
+
+              <hr className="border-zinc-800" />
+
+              {/* Timezone */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-2">Report Timezone</label>
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value as any)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-md px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                >
+                  <option value="IST">IST — India Standard Time (UTC+5:30)</option>
+                  <option value="UTC">UTC — Coordinated Universal Time</option>
+                  <option value="GMT">GMT — Greenwich Mean Time</option>
+                  <option value="EST">EST — Eastern Standard Time (UTC-5)</option>
+                  <option value="EDT">EDT — Eastern Daylight Time (UTC-4)</option>
+                </select>
+                <p className="text-xs text-zinc-500 mt-1">
+                  Timestamps in reports and exports will use this timezone.
                 </p>
               </div>
 

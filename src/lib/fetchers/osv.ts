@@ -1,13 +1,23 @@
 import type { Vulnerability } from '../../types/analysis';
+import { cleanVersionString } from '../utils/semver';
 
-export async function fetchOSV(packageName: string, ecosystem: string): Promise<Vulnerability[]> {
+export async function fetchOSV(packageName: string, ecosystem: string, version?: string): Promise<Vulnerability[]> {
   // OSV does not have a 'github' ecosystem — skip query for raw GitHub repos
   if (ecosystem === 'github') return [];
   try {
+    const cleanVer = version ? cleanVersionString(version) : '';
+    const queryBody: Record<string, unknown> = {
+      package: { name: packageName, ecosystem: mapToOsvEcosystem(ecosystem) },
+    };
+    // Include version when available — OSV will only return advisories that affect
+    // the specific version, drastically reducing false-positive CVEs.
+    if (cleanVer) {
+      queryBody.version = cleanVer;
+    }
     const response = await fetch('https://api.osv.dev/v1/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package: { name: packageName, ecosystem: mapToOsvEcosystem(ecosystem) } })
+      body: JSON.stringify(queryBody)
     });
     
     if (!response.ok) return [];

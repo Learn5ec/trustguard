@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TrustGuard AI — fastapi 0.130.0@latest</title>
+<style>*,::before,::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09090b;--surface:#18181b;--surface2:#27272a;--surface3:#3f3f46;
+  --border:#3f3f46;--border2:#27272a;
+  --text:#f4f4f5;--muted:#a1a1aa;--dim:#71717a;--faint:#52525b;
+  --indigo:#6366f1;--indigo-light:#818cf8;--indigo-dim:rgba(99,102,241,.15);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.15);
+  --amber:#f59e0b;--amber-dim:rgba(245,158,11,.15);
+  --green:#22c55e;--green-dim:rgba(34,197,94,.15);
+  --cyan:#22d3ee;
+  --font-mono:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+}
+html{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{max-width:960px;margin:0 auto;padding:32px 24px 80px}
+a{color:var(--indigo-light);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);font-size:.875em;background:var(--surface2);
+  border:1px solid var(--border2);padding:.1em .35em;border-radius:4px;color:var(--cyan)}
+pre{font-family:var(--font-mono);background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:16px;overflow-x:auto;font-size:.85em;margin:12px 0}
+
+/* ── Layout ─────────────────────────────── */
+.page-header{border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
+.page-header h1{font-size:1.6rem;font-weight:800;color:var(--text);line-height:1.2}
+.page-header .meta{color:var(--muted);font-size:.85rem;margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px}
+.card-title{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:16px;
+  display:flex;align-items:center;gap:8px}
+.card-title .icon{font-size:1.1rem}
+section{margin-bottom:20px}
+
+/* ── Scores ─────────────────────────────── */
+.scores{display:flex;flex-wrap:wrap;gap:32px}
+.score-block{min-width:200px}
+.score-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
+.score-value{font-size:2rem;font-weight:800;font-variant-numeric:tabular-nums}
+.score-value.risk{color:var(--red)}
+.score-value.trust{color:var(--green)}
+.score-sub{font-size:.75rem;color:var(--dim);margin-top:4px}
+.breakdown{margin-top:12px;display:flex;flex-direction:column;gap:4px}
+.breakdown-row{display:flex;justify-content:space-between;font-size:.75rem;
+  background:var(--surface2);border-radius:4px;padding:5px 10px}
+.breakdown-row .factor{color:var(--muted)}
+.breakdown-row .impact{font-weight:600}
+.impact-risk{color:var(--red)}
+.impact-trust-pos{color:var(--green)}
+.impact-trust-neg{color:var(--amber)}
+
+/* ── Badges ─────────────────────────────── */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.badge-critical{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.badge-high{background:rgba(249,115,22,.12);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+.badge-medium{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.badge-low{background:rgba(234,179,8,.12);color:#facc15;border:1px solid rgba(234,179,8,.3)}
+.badge-info{background:var(--indigo-dim);color:var(--indigo-light);border:1px solid rgba(99,102,241,.3)}
+.badge-confirmed{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-inferred{background:var(--surface2);color:var(--dim);border:1px solid var(--border)}
+.badge-ecosystem{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.badge-popularity{background:var(--indigo-dim);color:var(--indigo-light);border:1px solid rgba(99,102,241,.3)}
+.badge-verdict-use{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-verdict-caution{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.badge-verdict-avoid{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+
+/* ── Tables ─────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin:12px 0}
+thead tr{background:var(--surface2)}
+th{padding:8px 12px;text-align:left;font-weight:600;color:var(--muted);
+  text-transform:uppercase;font-size:.7rem;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border2);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+/* ── Finding cards ───────────────────────── */
+.finding{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px}
+.finding-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.finding-title{font-weight:600;color:var(--text);font-size:.9rem}
+.finding-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.finding-body{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:8px}
+.finding-evidence{font-family:var(--font-mono);font-size:.75rem;background:var(--surface);
+  border:1px solid var(--border);border-radius:4px;padding:8px 12px;margin:8px 0;
+  color:var(--cyan);word-break:break-all}
+.finding-rec{border-left:2px solid var(--indigo);padding-left:12px;
+  font-size:.82rem;color:var(--muted);margin-top:8px;font-style:italic}
+
+/* ── STRIDE ─────────────────────────────── */
+.stride-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.stride-grid{grid-template-columns:1fr}}
+.stride-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px}
+.stride-cat{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--indigo-light);margin-bottom:6px}
+.stride-text{font-size:.82rem;color:var(--muted);line-height:1.55}
+.threat-level{display:inline-flex;padding:3px 10px;border-radius:6px;font-size:.75rem;font-weight:700;
+  background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3);margin-bottom:16px}
+
+/* ── License ─────────────────────────────── */
+.license-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+@media(max-width:600px){.license-grid{grid-template-columns:1fr}}
+.license-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.license-cell h4{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.license-list li{font-size:.8rem;color:var(--text);list-style:none;padding:2px 0}
+.license-summary{font-weight:700;color:var(--text);margin-bottom:8px}
+.license-plain{border-left:2px solid var(--border);padding-left:12px;font-size:.82rem;
+  color:var(--muted);font-style:italic;margin-top:12px}
+
+/* ── Alternatives ───────────────────────── */
+.alt-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px}
+.alt-name{font-weight:700;color:var(--text);font-size:.95rem}
+.alt-desc{font-size:.82rem;color:var(--muted);margin:6px 0 10px}
+.alt-meta{display:flex;flex-wrap:wrap;gap:10px;font-size:.75rem;color:var(--dim)}
+.alt-why{border-left:2px solid var(--green);padding-left:10px;font-size:.82rem;
+  color:var(--muted);margin-top:8px}
+
+/* ── Remediation ────────────────────────── */
+.rem-item{display:flex;gap:12px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:14px;margin-bottom:10px}
+.rem-priority{flex-shrink:0;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;
+  text-transform:uppercase;align-self:flex-start}
+.priority-critical{background:var(--red-dim);color:var(--red)}
+.priority-high{background:rgba(249,115,22,.12);color:#fb923c}
+.priority-medium{background:var(--amber-dim);color:var(--amber)}
+.priority-low{background:var(--green-dim);color:var(--green)}
+.rem-action{font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:4px}
+.rem-rationale{font-size:.8rem;color:var(--muted);font-style:italic}
+
+/* ── Metadata grid ──────────────────────── */
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media(max-width:600px){.meta-grid{grid-template-columns:1fr}}
+.meta-row{display:flex;justify-content:space-between;font-size:.82rem;
+  background:var(--surface2);border-radius:4px;padding:5px 10px}
+.meta-key{color:var(--dim)}
+.meta-val{color:var(--text);font-family:var(--font-mono);font-size:.8rem;text-align:right}
+
+/* ── Token usage ────────────────────────── */
+.token-table td:first-child{color:var(--muted);width:55%}
+.token-table td:last-child{font-family:var(--font-mono);text-align:right}
+.token-total{font-weight:700}
+
+/* ── Batch summary table ────────────────── */
+.summary-table td:nth-child(3),.summary-table td:nth-child(4){font-family:var(--font-mono);font-weight:600}
+.summary-table td:nth-child(3){color:var(--red)}
+.summary-table td:nth-child(4){color:var(--green)}
+
+/* ── Collapsible sections ───────────────── */
+details{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+summary{padding:16px 20px;cursor:pointer;background:var(--surface);font-weight:700;
+  font-size:.95rem;color:var(--text);display:flex;align-items:center;gap:8px;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▶';font-size:.7rem;color:var(--dim);transition:transform .2s}
+details[open] summary::before{transform:rotate(90deg)}
+details[open] summary{border-bottom:1px solid var(--border)}
+.details-body{padding:20px;background:var(--surface)}
+
+/* ── Misc ───────────────────────────────── */
+.divider{border:none;border-top:1px solid var(--border);margin:28px 0}
+.text-muted{color:var(--muted)}
+.text-dim{color:var(--dim)}
+.text-red{color:var(--red)}
+.text-green{color:var(--green)}
+.text-amber{color:var(--amber)}
+.text-indigo{color:var(--indigo-light)}
+.mono{font-family:var(--font-mono)}
+.footer{border-top:1px solid var(--border);padding-top:24px;margin-top:40px;
+  text-align:center;font-size:.75rem;color:var(--faint)}
+.clean-findings{background:var(--green-dim);border:1px solid rgba(34,197,94,.3);
+  border-radius:8px;padding:16px;color:var(--green);font-size:.88rem;text-align:center}
+/* ── Deprecation warnings ───────────────────────── */
+.warn-deprecated{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+  border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px}
+.warn-unmaintained{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);
+  border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px}
+.warn-icon{font-size:1.3rem;flex-shrink:0;margin-top:2px}
+.warn-title{font-weight:700;font-size:.9rem;margin-bottom:4px}
+.warn-deprecated .warn-title{color:var(--red)}
+.warn-unmaintained .warn-title{color:var(--amber)}
+.warn-text{font-size:.82rem;color:var(--muted)}
+/* ── Attribution chip ───────────────────────────── */
+.repo-attribution{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:.78rem;
+  color:var(--muted);margin:6px 0 0;font-family:var(--font-mono)}
+.repo-attribution a{color:var(--indigo-light)}
+/* ── Appendix ───────────────────────────────────── */
+.appendix-table td,.appendix-table th{font-size:.78rem;padding:6px 10px}
+.appendix-section{margin-bottom:24px}
+.appendix-section h4{font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:8px;
+  border-bottom:1px solid var(--border2);padding-bottom:4px}</style>
+</head>
+<body>
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <span class="badge badge-ecosystem">pypi</span>
+    <h1>fastapi 0.130.0</h1>
+    <span class="mono text-dim" style="font-size:.9rem">latest</span>
+    <span class="badge badge-popularity">Niche</span>
+    <span class="badge badge-verdict-avoid">AVOID</span>
+  </div>
+  
+  <div style="font-size:.78rem;color:var(--dim);margin-bottom:12px;display:flex;flex-wrap:wrap;gap:16px">Scan started: <span class="mono">27 May 2026, 02:15:08 pm IST</span>Duration: <span class="mono">20s</span>Report generated: <span class="mono">27 May 2026, 02:15:28 pm IST</span></div>
+  <div class="meta">
+    Generated by TrustGuard AI · 27 May 2026, 02:15:28 pm IST
+    
+    
+  </div>
+</div>
+<div class="card"><div class="scores">
+  <div class="score-block">
+    <div class="score-label">Risk Score</div>
+    <div class="score-value risk">5<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more risk. 0 is safest.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">License Risk</span><span class="impact impact-risk">+5</span></div></div>
+  </div>
+  <div class="score-block">
+    <div class="score-label">Trust Score</div>
+    <div class="score-value trust">78<span style="font-size:1rem;font-weight:400;color:var(--dim)">/100</span></div>
+    <div class="score-sub">Higher = more trustworthy.</div>
+    <div class="breakdown"><div class="breakdown-row"><span class="factor">Risk Score Mirror</span><span class="impact impact-trust-neg">-2</span></div><div class="breakdown-row"><span class="factor">Low Adoption</span><span class="impact impact-trust-neg">-20</span></div></div>
+  </div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛡</span> Executive Summary</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">This analysis is based solely on metadata and risk scoring without access to the actual source code. The package 'fastapi 0.130.0' on PyPI has an unknown license and very low adoption, which introduces potential legal and reliability risks. Without source code review, no concrete security findings can be confirmed, but the lack of transparency and low usage are concerning.</p></div>
+<div class="card"><div class="card-title"><span class="icon">👥</span> Community Assessment</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7">The package is labeled as 'Niche' with approximately 0 weekly downloads, indicating minimal real-world adoption or battle-testing. This lack of usage makes it difficult to gauge community trust or reliability, and there are no visible signals of widespread confidence.</p></div>
+<div class="card"><div class="card-title"><span class="icon">💻</span> Secure Code Review</div><p style="font-size:.88rem;color:var(--muted);line-height:1.7;white-space:pre-wrap">No source code was provided for review, so it is impossible to assess the actual implementation, security practices, or potential vulnerabilities. Key risks like hardcoded secrets, dangerous API usage, or silent telemetry cannot be ruled out without inspecting the code. The absence of GitHub data further limits transparency into the package's development and maintenance practices.</p></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🔍</span> Security Findings</div>
+  <div class="clean-findings">✅ No security issues identified by the Secure Code Review Agent.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🕸</span> STRIDE Threat Model</div>
+  <div class="threat-level">Overall threat level: MEDIUM</div>
+  <div class="stride-grid">
+    <div class="stride-card"><div class="stride-cat">Spoofing</div><div class="stride-text">Cannot be assessed without source code. Potential risks if the package relies on unverified external dependencies or lacks proper authentication mechanisms.</div></div>
+    <div class="stride-card"><div class="stride-cat">Tampering</div><div class="stride-text">Cannot be assessed without source code. No evidence of integrity checks or secure update mechanisms.</div></div>
+    <div class="stride-card"><div class="stride-cat">Repudiation</div><div class="stride-text">Cannot be assessed without source code. No visibility into logging or audit practices.</div></div>
+    <div class="stride-card"><div class="stride-cat">Information Disclosure</div><div class="stride-text">Cannot be assessed without source code. Potential risks if the package inadvertently exposes sensitive data or lacks proper data handling practices.</div></div>
+    <div class="stride-card"><div class="stride-cat">Denial of Service</div><div class="stride-text">Cannot be assessed without source code. No visibility into resource management or input validation.</div></div>
+    <div class="stride-card"><div class="stride-cat">Elevation of Privilege</div><div class="stride-text">Cannot be assessed without source code. No evidence of secure permission handling or sandboxing.</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">📜</span> License Analysis</div>
+  <div class="license-summary">The license for this package is listed as 'Unknown'.</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+    Risk: <strong style="color:var(--text)">HIGH</strong> &nbsp;·&nbsp;
+    Commercial use: <strong style="color:var(--text)">UNCLEAR</strong>
+  </div>
+  <div class="license-grid">
+    
+    <div class="license-cell"><h4>You Cannot</h4><ul class="license-list"><li>🚫 Use the package without legal risk, as the license terms are unclear</li><li>🚫 Redistribute or modify the package with confidence in compliance</li></ul></div>
+    <div class="license-cell"><h4>You Must</h4><ul class="license-list"><li>⚡ Assume all rights are reserved until the license is clarified</li><li>⚡ Seek legal advice before using the package in production or commercial projects</li></ul></div>
+  </div>
+  <div class="license-plain">The package does not specify a license, which means you have no explicit permission to use, modify, or distribute it. This poses significant legal risks, especially for commercial or production use. You should contact the maintainers to clarify the license before proceeding.</div>
+</div>
+<div class="card">
+  <div class="card-title"><span class="icon">🐛</span> Known Vulnerabilities (OSV)</div>
+  <div class="clean-findings">✅ No known CVEs found in OSV database.</div>
+</div>
+<div class="card"><div class="card-title"><span class="icon">🔄</span> Alternatives</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">1. FastAPI</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">A modern, fast (high-performance) web framework for building APIs with Python 3.7+ based on standard Python type hints.</div>
+  <div class="alt-meta">
+    <span>⭐ ~60k stars</span>
+    <span>⬇ ~10M/wk</span>
+    <span>License: MIT</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: EASY</span>
+  </div>
+  <div class="alt-why">Well-documented, widely adopted, MIT-licensed, and actively maintained with a strong community and transparent development practices.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Automatic interactive API documentation (Swagger UI and ReDoc), Built-in data validation and serialization using Pydantic, Asynchronous support out of the box</div>
+</div><div class="alt-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span class="alt-name">2. Flask</span>
+    <span class="badge badge-ecosystem">pypi</span>
+  </div>
+  <div class="alt-desc">A lightweight WSGI web application framework designed to make getting started quick and easy, with the ability to scale up to complex applications.</div>
+  <div class="alt-meta">
+    <span>⭐ ~60k stars</span>
+    <span>⬇ ~15M/wk</span>
+    <span>License: BSD-3-Clause</span>
+    <span>Maintenance: ACTIVE</span>
+    <span>Migration: MODERATE</span>
+  </div>
+  <div class="alt-why">Mature, widely used, BSD-licensed, and highly extensible with a large ecosystem of plugins and community support.</div>
+  <div style="margin-top:8px;font-size:.78rem;color:var(--dim)">Features: Minimalist core with extensive extensions for added functionality, Flexible and easy to integrate with other libraries, Strong community and documentation</div>
+</div></div>
+<div class="card"><div class="card-title"><span class="icon">🛠</span> Remediation Steps</div><div class="rem-item">
+  <span class="rem-priority priority-low">IMMEDIATE</span>
+  <div>
+    <div class="rem-action">Clarify the license with the package maintainers or avoid using the package until the license is confirmed.</div>
+    <div class="rem-rationale">An unknown license introduces legal risks that could impact your project's compliance and distribution rights.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">SHORT_TERM</span>
+  <div>
+    <div class="rem-action">Evaluate and migrate to a well-established alternative like FastAPI or Flask.</div>
+    <div class="rem-rationale">These alternatives are battle-tested, well-documented, and have clear licensing, reducing both legal and security risks.</div>
+  </div>
+</div><div class="rem-item">
+  <span class="rem-priority priority-low">LONG_TERM</span>
+  <div>
+    <div class="rem-action">If you must use this package, conduct a thorough source code review to identify security risks and hardcoded secrets.</div>
+    <div class="rem-rationale">Without source code access, critical vulnerabilities or malicious code could go undetected, posing risks to your application.</div>
+  </div>
+</div></div>
+<div class="card">
+  <div class="card-title"><span class="icon">🪙</span> Token Usage &amp; Cost</div>
+  <table class="token-table">
+    <tbody>
+      <tr><td>Provider / Model</td><td class="mono">mistral/mistral-large-latest</td></tr>
+      <tr><td>Input tokens</td><td>2,019</td></tr>
+      <tr><td>Output tokens</td><td>1,212</td></tr>
+      <tr class="token-total"><td>Total tokens</td><td>3,231</td></tr>
+      <tr class="token-total"><td>Estimated cost</td><td>$0.0113</td></tr>
+      <tr><td>Count source</td><td>Reported by API</td></tr>
+    </tbody>
+  </table>
+</div>
+<details>
+  <summary><span class="icon">📖</span> Technical Appendix &amp; Methodology</summary>
+  <div class="details-body">
+
+    <div class="appendix-section">
+      <h4>Popularity Labels</h4>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:8px">
+        For npm, PyPI, uv, pip, and pipx packages, the signal is weekly downloads.
+        For all other ecosystems, the signal is GitHub stars.
+      </p>
+      <table class="appendix-table">
+        <thead><tr><th>Label</th><th>Threshold</th><th>Description</th></tr></thead>
+        <tbody><tr><td><strong>Niche</strong></td><td class="mono text-dim">Below first threshold</td><td>Fewer than 100 weekly downloads / GitHub stars. Very limited adoption.</td></tr><tr><td><strong>Small community</strong></td><td class="mono text-dim">≥ 100 downloads / 100 stars</td><td>100–9,999 weekly downloads / GitHub stars. Growing but limited usage.</td></tr><tr><td><strong>Established</strong></td><td class="mono text-dim">≥ 10,000 downloads / 1,000 stars</td><td>10,000–99,999 weekly downloads / GitHub stars. Solid, proven usage.</td></tr><tr><td><strong>Popular</strong></td><td class="mono text-dim">≥ 100,000 downloads / 10,000 stars</td><td>100,000–999,999 weekly downloads / GitHub stars. Widely adopted.</td></tr><tr><td><strong>Industry Standard</strong></td><td class="mono text-dim">≥ 1,000,000 downloads / 50,000 stars</td><td>1,000,000+ weekly downloads / GitHub stars. Dominant in its domain.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>License Reference</h4>
+      <table class="appendix-table">
+        <thead><tr><th>SPDX ID</th><th>Type</th><th>Summary</th></tr></thead>
+        <tbody><tr><td class="mono"><strong>MIT</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Use, modify, distribute freely. Commercial use allowed.</td></tr><tr><td class="mono"><strong>Apache-2.0</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Like MIT but includes explicit patent grant.</td></tr><tr><td class="mono"><strong>BSD-2-Clause</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Minimal restrictions. Attribution required.</td></tr><tr><td class="mono"><strong>BSD-3-Clause</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Like BSD-2 but prevents use of project name for endorsement.</td></tr><tr><td class="mono"><strong>ISC</strong></td><td><span class="badge badge-ecosystem">Permissive</span></td><td>Functionally equivalent to MIT. Widely used in npm ecosystem.</td></tr><tr><td class="mono"><strong>GPL-2.0</strong></td><td><span class="badge badge-ecosystem">Copyleft</span></td><td>Source must be open if distributed. Strong copyleft.</td></tr><tr><td class="mono"><strong>GPL-3.0</strong></td><td><span class="badge badge-ecosystem">Copyleft</span></td><td>Like GPL-2.0 with additional patent protections.</td></tr><tr><td class="mono"><strong>AGPL-3.0</strong></td><td><span class="badge badge-ecosystem">Strong Copyleft</span></td><td>GPL-3.0 + network copyleft (SaaS must open-source).</td></tr><tr><td class="mono"><strong>LGPL-2.1</strong></td><td><span class="badge badge-ecosystem">Weak Copyleft</span></td><td>Library copyleft — linking is allowed without copyleft.</td></tr><tr><td class="mono"><strong>LGPL-3.0</strong></td><td><span class="badge badge-ecosystem">Weak Copyleft</span></td><td>LGPL-2.1 + GPLv3 features.</td></tr><tr><td class="mono"><strong>MPL-2.0</strong></td><td><span class="badge badge-ecosystem">Weak Copyleft</span></td><td>File-level copyleft. Compatible with GPL.</td></tr><tr><td class="mono"><strong>SSPL-1.0</strong></td><td><span class="badge badge-ecosystem">Source Available</span></td><td>MongoDB license. Highly restrictive for SaaS use.</td></tr><tr><td class="mono"><strong>CC0-1.0</strong></td><td><span class="badge badge-ecosystem">Public Domain</span></td><td>No rights reserved. Maximum freedom for users.</td></tr><tr><td class="mono"><strong>Unlicense</strong></td><td><span class="badge badge-ecosystem">Public Domain</span></td><td>Simplified public domain dedication.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Risk Score Methodology (0–100, higher = more risk)</h4>
+      <table class="appendix-table">
+        <thead><tr><th>Factor</th><th>Max Impact</th><th>Condition</th></tr></thead>
+        <tbody>
+          <tr><td>Vulnerabilities</td><td class="mono">+40</td><td>CRITICAL CVE = +40, HIGH = +25, MEDIUM = +15, LOW = +5 (capped at 40)</td></tr>
+          <tr><td>Maintenance</td><td class="mono">+25</td><td>No commits in 1yr = +15, 6mo = +10, 3mo = +5</td></tr>
+          <tr><td>Archived repo</td><td class="mono">+20</td><td>GitHub repo is archived</td></tr>
+          <tr><td>OpenSSF Scorecard</td><td class="mono">+20</td><td>Inverse of OpenSSF score</td></tr>
+          <tr><td>License</td><td class="mono">+10</td><td>GPL/AGPL/SSPL = +10; LGPL/MPL = +5</td></tr>
+          <tr><td>Transitive CVEs</td><td class="mono">+5</td><td>Direct dependencies have known CVEs</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Trust Score Methodology (0–100, higher = more trustworthy)</h4>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:8px">
+        Trust Score starts at 100 and applies deductions mirroring risk factors,
+        then applies bonuses for positive signals:
+        &gt;1M downloads (+10), &gt;10k stars (+8), &gt;100 contributors (+5),
+        recent release within 90 days (+5), signed releases (+5).
+      </p>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Security Finding Categories</h4>
+      <table class="appendix-table">
+        <thead><tr><th>Category</th><th>Description</th></tr></thead>
+        <tbody><tr><td class="mono" style="font-size:.75rem"><strong>README_CODE_MISMATCH</strong></td><td>README claims contradict the actual source code behavior.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>SILENT_TELEMETRY</strong></td><td>Analytics or crash reporting fires automatically on import without disclosure.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>THIRD_PARTY_DATA_EXFILTRATION</strong></td><td>Data is sent to external domains unnecessarily or without user knowledge.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>INSECURE_TRANSMISSION</strong></td><td>HTTP instead of HTTPS, certificate validation disabled (rejectUnauthorized:false).</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>SENSITIVE_OUTBOUND</strong></td><td>Outbound requests include credentials, tokens, or PII in URL or request body.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>BACKGROUND_PROCESS</strong></td><td>setInterval, cron jobs, ServiceWorkers, or OS services installed at import.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>POSTINSTALL_RISK</strong></td><td>scripts.postinstall/preinstall/prepare in package.json — runs arbitrary code on install.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>EXCESSIVE_PERMISSIONS</strong></td><td>Filesystem access beyond stated purpose, raw sockets, or sudo/admin elevation.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>HARDCODED_SECRET</strong></td><td>API keys, tokens, passwords, or private keys embedded in source code.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>DANGEROUS_API_USAGE</strong></td><td>eval(), Function(), exec(), or dynamic require() with user-controlled input.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>PROTOTYPE_POLLUTION</strong></td><td>Unsafe Object.assign(target, input) or recursive merge without prototype check.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>OBFUSCATION_INDICATOR</strong></td><td>eval(atob(…)), hex-encoded strings, or obfuscated code in non-dist files.</td></tr><tr><td class="mono" style="font-size:.75rem"><strong>DEPENDENCY_CVE</strong></td><td>Known CVE found in a direct dependency of this package.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="appendix-section">
+      <h4>Data Sources</h4>
+      <table class="appendix-table">
+        <tbody>
+          <tr><td><strong>OSV.dev</strong></td><td>Open Source Vulnerability database — CVE and GHSA advisories</td></tr>
+          <tr><td><strong>GitHub API</strong></td><td>Repository stats, contributors, commits, releases, license, archival status</td></tr>
+          <tr><td><strong>npm Registry</strong></td><td>Download counts, version history, package metadata</td></tr>
+          <tr><td><strong>PyPI API</strong></td><td>Python package metadata, classifiers, project URLs</td></tr>
+          <tr><td><strong>crates.io API</strong></td><td>Rust crate metadata and repository links</td></tr>
+          <tr><td><strong>pub.dev API</strong></td><td>Dart/Flutter package metadata</td></tr>
+          <tr><td><strong>OpenSSF Scorecard</strong></td><td>Security hygiene scores (when available)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</details>
+<div class="footer">
+  <p>⚠️ <strong>Disclaimer:</strong> TrustGuard AI provides automated analysis for developer due-diligence. Results may be incomplete — always verify critical findings independently. The misuse of any security information obtained through TrustGuard AI is entirely the responsibility of the user.</p>
+  <p style="margin-top:8px">Generated 27 May 2026, 02:15:28 pm IST · TrustGuard AI Security Agent</p>
+</div>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { useSettingsStore } from '../../store/settingsStore';
-import type { SourceChunk } from './types';
+import type { SourceChunk, SourceChunkResult } from './types';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -229,6 +229,41 @@ async function fetchAndBuildContent(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
+ * Resolve the best `ref` string for a given version, trying `v{version}` then `{version}`.
+ * Returns the ref string to use, or undefined if no specific version (→ default branch).
+ */
+async function resolveVersionRef(
+  owner: string,
+  cleanRepo: string,
+  version: string | undefined,
+  headers: Record<string, string>
+): Promise<string | undefined> {
+  if (!version || version === 'latest') return undefined;
+
+  // Try v{version} first (most common tag convention)
+  const vRef = `v${version}`;
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${cleanRepo}/git/ref/tags/${vRef}`,
+      { headers }
+    );
+    if (r.ok) return vRef;
+  } catch { /* ignore */ }
+
+  // Try bare version as tag
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${owner}/${cleanRepo}/git/ref/tags/${version}`,
+      { headers }
+    );
+    if (r.ok) return version;
+  } catch { /* ignore */ }
+
+  // No matching tag found — fall back to default branch
+  return undefined;
+}
+
+/**
  * Fetch source code from a GitHub repo and return it as labelled chunks.
  *
  * Simple (non-monorepo) repos → single chunk, same behaviour as before.
@@ -236,10 +271,17 @@ async function fetchAndBuildContent(
  *   each staying within MAX_CHUNK_CHARS so every chunk fits comfortably in a
  *   single LLM context window.
  *
+ * @param url - GitHub repo URL (https://github.com/owner/repo)
+ * @param version - Optional version string. When provided, tries to fetch from
+ *   the matching git tag (v{version} or {version}) instead of the default branch.
+ *
  * The caller (analysisStore) decides whether to run a single-pass or
  * multi-pass LLM analysis based on chunks.length.
+ *
+ * @returns SourceChunkResult containing the chunks and the resolved git ref (tag),
+ *   or null if the repo could not be fetched.
  */
-export async function fetchGitHubRepoSourceChunks(url: string): Promise<SourceChunk[] | null> {
+export async function fetchGitHubRepoSourceChunks(url: string, version?: string): Promise<SourceChunkResult | null> {
   const token = useSettingsStore.getState().githubToken;
 
   const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
@@ -250,16 +292,21 @@ export async function fetchGitHubRepoSourceChunks(url: string): Promise<SourceCh
   const headers: Record<string, string> = { 'Accept': 'application/vnd.github.v3+json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
+  // Resolve the correct ref for this version (if any)
+  const ref = await resolveVersionRef(owner, cleanRepo, version, headers);
+  const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+
   try {
     // Fetch root contents and .github/workflows in parallel
     const [rootRes, workflowsRes] = await Promise.allSettled([
-      fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents`, { headers }),
-      fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents/.github/workflows`, { headers })
+      fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents${refQuery}`, { headers }),
+      fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents/.github/workflows${refQuery}`, { headers })
     ]);
 
     if (rootRes.status === 'rejected' || !(rootRes.value as Response).ok) return null;
     const rootContents: GHFile[] = await (rootRes.value as Response).json();
     if (!Array.isArray(rootContents)) return null;
+
 
     // Pick the most security-relevant workflow (not the first alphabetically)
     let bestWorkflow: GHFile | null = null;
@@ -293,7 +340,7 @@ export async function fetchGitHubRepoSourceChunks(url: string): Promise<SourceCh
       const files = selectPriorityFiles(rootContents, includedPaths, bestWorkflow).slice(0, 8);
       const { content } = await fetchAndBuildContent(files, headers, rootPkgScripts, MAX_TOTAL_CHARS);
       if (!content) return null;
-      return [{ label: `${owner}/${cleanRepo}`, content }];
+      return { chunks: [{ label: `${owner}/${cleanRepo}`, content }], resolvedRef: ref };
     }
 
     // ── MONOREPO: multi-chunk analysis ────────────────────────────────────────
@@ -310,9 +357,9 @@ export async function fetchGitHubRepoSourceChunks(url: string): Promise<SourceCh
     // Determine which workspace directories to scan
     const workspaceDirs = getWorkspaceDirs(rootContents, workspaceGlobs);
 
-    // Fetch each workspace directory's contents concurrently
+    // Fetch each workspace directory's contents concurrently (with version ref if applicable)
     const wsDirFetches = workspaceDirs.map(dir =>
-      fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents/${dir}`, { headers })
+      fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents/${dir}${refQuery}`, { headers })
         .then(r => r.ok ? r.json() : null)
         .then(data => ({ dir, contents: Array.isArray(data) ? data as GHFile[] : null }))
         .catch(() => ({ dir, contents: null as GHFile[] | null }))
@@ -341,7 +388,7 @@ export async function fetchGitHubRepoSourceChunks(url: string): Promise<SourceCh
       if (srcDir) {
         try {
           const srcRes = await fetch(
-            `https://api.github.com/repos/${owner}/${cleanRepo}/contents/${dir}/src`,
+            `https://api.github.com/repos/${owner}/${cleanRepo}/contents/${dir}/src${refQuery}`,
             { headers }
           );
           if (srcRes.ok) {
@@ -367,7 +414,7 @@ export async function fetchGitHubRepoSourceChunks(url: string): Promise<SourceCh
       }
     }
 
-    return chunks.length > 0 ? chunks : null;
+    return chunks.length > 0 ? { chunks, resolvedRef: ref } : null;
 
   } catch (err) {
     console.error('Failed to fetch GitHub repository source chunks', err);
@@ -380,12 +427,12 @@ export async function fetchGitHubRepoSourceChunks(url: string): Promise<SourceCh
  * Returns all chunks concatenated into a single string (used by unpkg flow,
  * dep scanner, and exports that expect a flat sourceCode string).
  */
-export async function fetchGitHubRepoSourceCode(url: string): Promise<string | null> {
-  const chunks = await fetchGitHubRepoSourceChunks(url);
-  if (!chunks || chunks.length === 0) return null;
-  if (chunks.length === 1) return chunks[0].content;
+export async function fetchGitHubRepoSourceCode(url: string, version?: string): Promise<string | null> {
+  const result = await fetchGitHubRepoSourceChunks(url, version);
+  if (!result || result.chunks.length === 0) return null;
+  if (result.chunks.length === 1) return result.chunks[0].content;
   // Multi-chunk: label each section so the content is still readable in exports
-  return chunks
+  return result.chunks
     .map(c => `=== SOURCE SECTION: ${c.label} ===\n${c.content}`)
     .join('\n\n');
 }

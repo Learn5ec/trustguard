@@ -54,21 +54,55 @@ export function validatePackageInput(input: string): ValidationResult {
     }
   }
 
-  // Parse @version suffix
-  // For scoped packages like @types/node@18.0.0, only split on the LAST @
+  // ── Parse version from various notation formats ──────────────────────────────
+  // Priority order: TOML inline table → TOML simple → pip specifiers → space-sep → @-sep
   let packageName = trimmed;
   let version: string | undefined;
 
-  if (trimmed.startsWith('@')) {
-    // Scoped package: @scope/name@version
+  // 1. TOML inline table: `name = { version = "^1.2.3", ... }`
+  const tomlInlineMatch = trimmed.match(/^([A-Za-z0-9_.-]+)\s*=\s*\{\s*version\s*=\s*"([^"]+)"/);
+  if (tomlInlineMatch) {
+    packageName = tomlInlineMatch[1].trim();
+    const rawVer = tomlInlineMatch[2].trim().replace(/^[\^~>=<!]+/, '').trim();
+    version = (rawVer && rawVer !== '*') ? rawVer : undefined;
+
+  // 2. TOML simple: `name = "^1.2.3"` or `name = "*"`
+  } else if (/^[A-Za-z0-9_.-]+\s*=\s*"/.test(trimmed)) {
+    const tomlSimpleMatch = trimmed.match(/^([A-Za-z0-9_.-]+)\s*=\s*"([^"]*)"/);
+    if (tomlSimpleMatch) {
+      packageName = tomlSimpleMatch[1].trim();
+      const rawVer = tomlSimpleMatch[2].trim().replace(/^[\^~>=<!]+/, '').trim();
+      version = (rawVer && rawVer !== '*') ? rawVer : undefined;
+    }
+
+  // 3. pip/semver specifiers: `name>=1.2.3`, `name==1.2.3`, `name~=1.2.3`, etc.
+  } else if (/^[A-Za-z0-9_.-]+\s*(?:>=|<=|==|!=|~=|>|<)/.test(trimmed)) {
+    const pipMatch = trimmed.match(/^([A-Za-z0-9_.-]+)\s*(?:>=|<=|==|!=|~=|>|<)\s*([\d][^\s,;]*)/);
+    if (pipMatch) {
+      packageName = pipMatch[1].trim();
+      // Take only the first constraint (before any comma/semicolon)
+      version = pipMatch[2].split(/[,;]/)[0].trim();
+    }
+
+  // 4. Space-separated: `name 1.2.3`
+  } else if (/^[A-Za-z0-9_.-]+\s+[\d]/.test(trimmed) && !trimmed.startsWith('@')) {
+    const spaceMatch = trimmed.match(/^([A-Za-z0-9_.-]+)\s+([\d][^\s]*)/);
+    if (spaceMatch) {
+      packageName = spaceMatch[1].trim();
+      version = spaceMatch[2].trim();
+    }
+
+  // 5. Scoped npm package: @scope/name@version
+  } else if (trimmed.startsWith('@')) {
     const withoutAt = trimmed.slice(1); // 'scope/name@version' or 'scope/name'
     const lastAt = withoutAt.lastIndexOf('@');
     if (lastAt !== -1 && withoutAt.slice(lastAt + 1).length > 0) {
       packageName = '@' + withoutAt.slice(0, lastAt);
       version = withoutAt.slice(lastAt + 1);
     }
+
+  // 6. Regular @-sep: `name@version`
   } else {
-    // Regular package: name@version
     const atIdx = trimmed.indexOf('@');
     if (atIdx > 0) {
       packageName = trimmed.slice(0, atIdx);
