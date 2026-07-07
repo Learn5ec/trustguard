@@ -76,13 +76,15 @@ export function calculateTrustScore(data: Partial<PackageAnalysisData>): { score
   }
 
   // ── Commit frequency ─────────────────────────────────────────────────────
-  const commits90d = data.github?.commitsLast90Days ?? 0;
-  if (data.github && commits90d === 0) {
-    score -= 10;
-    breakdown.push({ factor: 'No Recent Commits', impact: -10, description: 'Zero commits in the last 90 days — project may be abandoned or on life support.' });
-  } else if (commits90d >= 10) {
-    score += 5;
-    breakdown.push({ factor: 'Active Development', impact: 5, description: `${commits90d} commits in the last 90 days — actively maintained.` });
+  const commits90d = data.github?.commitsLast90Days;
+  if (commits90d !== undefined) {
+    if (commits90d === 0) {
+      score -= 10;
+      breakdown.push({ factor: 'No Recent Commits', impact: -10, description: 'Zero commits in the last 90 days — project may be abandoned or on life support.' });
+    } else if (commits90d >= 10) {
+      score += 5;
+      breakdown.push({ factor: 'Active Development', impact: 5, description: `${commits90d} commits in the last 90 days — actively maintained.` });
+    }
   }
 
   // ── OpenSSF Scorecard ─────────────────────────────────────────────────────

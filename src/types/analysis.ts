@@ -194,8 +194,6 @@ export interface AnalysisReport {
     description: string;
     whyBetter: string;
     license: string;
-    weeklyDownloads: string;
-    githubStars: string;
     maintenanceStatus: 'ACTIVE' | 'MAINTAINED' | 'SLOW' | 'ABANDONED';
     migrationDifficulty: 'EASY' | 'MODERATE' | 'HARD';
     notableFeatures: string[];

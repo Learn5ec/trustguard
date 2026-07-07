@@ -704,7 +704,7 @@ export function TrustGuardPdfDocument({ data, report, tokenUsage, timezone = 'IS
                 </Text>
                 <Text style={s.bkDesc}>{alt.description}</Text>
                 <Text style={[s.bkDesc, { color: C.green }]}>Why: {alt.whyBetter}</Text>
-                <Text style={s.bkDesc}>License: {alt.license} | Stars: {alt.githubStars} | Downloads: {alt.weeklyDownloads}/wk | Difficulty: {alt.migrationDifficulty} | Maintenance: {alt.maintenanceStatus}</Text>
+                <Text style={s.bkDesc}>License: {alt.license} | Difficulty: {alt.migrationDifficulty} | Maintenance: {alt.maintenanceStatus}</Text>
                 {alt.notableFeatures?.length > 0 && (
                   <Text style={[s.bkDesc, { marginTop: 2 }]}>Features: {alt.notableFeatures.join(' · ')}</Text>
                 )}

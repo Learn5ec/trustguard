@@ -44,11 +44,13 @@ export async function fetchGitHubStats(url: string): Promise<GitHubStats | null>
       }
     }
 
-    // Commit frequency: count commits in last 90 days
-    let commitsLast90Days = 0;
+    // Commit frequency: count commits in last 90 days.
+    // Stays undefined (not 0) when the fetch fails/is rate-limited, so callers
+    // can tell "no data" apart from "confirmed zero commits".
+    let commitsLast90Days: number | undefined;
     if (commitsRes.status === 'fulfilled' && commitsRes.value.ok) {
       const commitsData = await commitsRes.value.json();
-      commitsLast90Days = Array.isArray(commitsData) ? commitsData.length : 0;
+      commitsLast90Days = Array.isArray(commitsData) ? commitsData.length : undefined;
     }
 
     // Author profile

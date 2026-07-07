@@ -115,6 +115,53 @@ function normalizeSpdxId(raw: string | null | undefined): string | undefined {
   return trimmed; // pass through — better than dropping it
 }
 
+// PyPI trove classifiers use "vX or later (XYZ+)" phrasing that doesn't match
+// the free-text variants already covered by SPDX_NORMALIZE (e.g. "GNU Affero
+// General Public License v3 or later (AGPLv3+)"). Handle those separately.
+function normalizeClassifierVariant(suffix: string): string | undefined {
+  if (/affero/i.test(suffix)) return "AGPL-3.0";
+  if (/lesser general public license/i.test(suffix))
+    return /v3/.test(suffix) ? "LGPL-3.0" : "LGPL-2.1";
+  if (/general public license/i.test(suffix)) {
+    if (/v3/.test(suffix)) return "GPL-3.0";
+    if (/v2/.test(suffix)) return "GPL-2.0";
+  }
+  return undefined;
+}
+
+// When multiple license classifiers are present (e.g. dual-licensed packages),
+// prefer the more restrictive/copyleft one so risk scoring isn't understated.
+const CLASSIFIER_LICENSE_PRIORITY = [
+  "AGPL-3.0",
+  "GPL-3.0",
+  "GPL-2.0",
+  "LGPL-3.0",
+  "LGPL-2.1",
+  "MPL-2.0",
+];
+
+/**
+ * Fall back to PyPI trove classifiers (e.g. "License :: OSI Approved :: MIT
+ * License") to detect the license when the legacy `info.license` field is
+ * blank — a common pattern for packages that declare license metadata only
+ * via pyproject.toml classifiers.
+ */
+function extractSpdxFromClassifiers(classifiers: string[]): string | undefined {
+  const found: string[] = [];
+  for (const c of classifiers) {
+    if (!c.startsWith("License")) continue;
+    const suffix = c.replace(/^License(?: :: OSI Approved)? :: /, "").trim();
+    if (!suffix || suffix === "OSI Approved") continue;
+    const normalized = normalizeSpdxId(suffix) ?? normalizeClassifierVariant(suffix);
+    if (normalized) found.push(normalized);
+  }
+  if (found.length === 0) return undefined;
+  for (const preferred of CLASSIFIER_LICENSE_PRIORITY) {
+    if (found.includes(preferred)) return preferred;
+  }
+  return found[0];
+}
+
 // ── Whitelist: ONLY these base URLs are contacted by this module ──────────────
 const REGISTRY_BASES: Partial<Record<Ecosystem, string>> = {
   npm: "https://registry.npmjs.org/",
@@ -269,9 +316,11 @@ async function lookupPypi(
         classifiers.some((d) => d.includes("Inactive")))
   );
 
-  // Extract license SPDX id with normalisation
+  // Extract license SPDX id with normalisation. Fall back to trove classifiers
+  // when the legacy `license` field is blank (see extractSpdxFromClassifiers).
   const rawLicense: string | undefined = info.license || undefined;
-  const licenseId = normalizeSpdxId(rawLicense);
+  const licenseId =
+    normalizeSpdxId(rawLicense) ?? extractSpdxFromClassifiers(classifiers);
 
   // Extract publish date for the requested version
   let latestVersionPublishedAt: Date | undefined;

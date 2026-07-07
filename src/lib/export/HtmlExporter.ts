@@ -459,8 +459,6 @@ function renderAlternatives(alts: any[]): string {
   </div>
   <div class="alt-desc">${esc(a.description)}</div>
   <div class="alt-meta">
-    <span>⭐ ${esc(a.githubStars)} stars</span>
-    <span>⬇ ${esc(a.weeklyDownloads)}/wk</span>
     <span>License: ${esc(a.license)}</span>
     <span>Maintenance: ${esc(a.maintenanceStatus)}</span>
     <span>Migration: ${esc(a.migrationDifficulty)}</span>

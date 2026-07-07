@@ -139,8 +139,6 @@ Return a JSON object with EXACTLY this structure (no extra fields, no markdown f
       "description": "string (1-2 sentences)",
       "whyBetter": "string",
       "license": "string (SPDX)",
-      "weeklyDownloads": "string (approx, e.g. '2.5M')",
-      "githubStars": "string (approx, e.g. '45k')",
       "maintenanceStatus": "ACTIVE|MAINTAINED|SLOW|ABANDONED",
       "migrationDifficulty": "EASY|MODERATE|HARD",
       "notableFeatures": ["string", "string"]
@@ -259,8 +257,6 @@ Return a JSON object with EXACTLY this structure (no extra fields, no markdown f
       "description": "string (1-2 sentences)",
       "whyBetter": "string",
       "license": "string (SPDX)",
-      "weeklyDownloads": "string (approx, e.g. '2.5M')",
-      "githubStars": "string (approx, e.g. '45k')",
       "maintenanceStatus": "ACTIVE|MAINTAINED|SLOW|ABANDONED",
       "migrationDifficulty": "EASY|MODERATE|HARD",
       "notableFeatures": ["string", "string"]

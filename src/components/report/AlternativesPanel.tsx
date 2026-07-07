@@ -41,8 +41,6 @@ export function AlternativesPanel({ alternatives }: Props) {
             <p className="text-indigo-300 text-xs">↑ {alt.whyBetter}</p>
             <div className="flex flex-wrap gap-3 pt-1 text-xs text-zinc-500">
               <span>📄 {alt.license}</span>
-              <span>⭐ {alt.githubStars}</span>
-              <span>⬇ {alt.weeklyDownloads}/wk</span>
               <span className={difficultyColors[alt.migrationDifficulty] || 'text-zinc-400'}>
                 Migration: {alt.migrationDifficulty}
               </span>

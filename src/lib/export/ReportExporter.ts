@@ -246,7 +246,7 @@ export class ReportExporter {
         md += `### ${i + 1}. ${alt.name} (${alt.ecosystem})\n`;
         md += `${alt.description}\n`;
         md += `- **Why Better:** ${alt.whyBetter}\n`;
-        md += `- License: ${alt.license} | ⭐ ${alt.githubStars} | ⬇ ${alt.weeklyDownloads}/wk | Difficulty: ${alt.migrationDifficulty} | Maintenance: ${alt.maintenanceStatus}\n`;
+        md += `- License: ${alt.license} | Difficulty: ${alt.migrationDifficulty} | Maintenance: ${alt.maintenanceStatus}\n`;
         if (alt.notableFeatures?.length) md += `- **Features:** ${alt.notableFeatures.join(', ')}\n`;
         md += `\n`;
       });
