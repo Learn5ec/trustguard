@@ -248,6 +248,13 @@ export default defineConfig({
     // Polyfill it as globalThis so the browser parser works without crashing.
     global: 'globalThis',
   },
+  optimizeDeps: {
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
+    },
+  },
   server: {
     host: '192.168.7.109',
     port: 23232,
