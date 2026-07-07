@@ -17,7 +17,6 @@ interface SettingsState {
   llmProvider: LLMProviderId;
   llmModel: string;
   githubToken: string | null;
-  nvdKey: string | null;
   includeTransitive: boolean;
   verboseThreatModel: boolean;
   timezone: 'IST' | 'UTC' | 'GMT' | 'EST' | 'EDT';
@@ -30,7 +29,6 @@ interface SettingsState {
   setLLMProvider: (provider: LLMProviderId, model: string) => void;
   setLLMModel: (model: string) => void;
   setGithubToken: (token: string | null) => void;
-  setNvdKey: (key: string | null) => void;
   setIncludeTransitive: (include: boolean) => void;
   setVerboseThreatModel: (verbose: boolean) => void;
   fetchAvailableModels: (provider: LLMProviderId, apiKey?: string) => Promise<void>;
@@ -40,7 +38,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   llmProvider: 'openai',
   llmModel: 'gpt-4o-mini',
   githubToken: null,
-  nvdKey: null,
   includeTransitive: false,
   verboseThreatModel: false,
   timezone: 'IST',
@@ -55,7 +52,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setLLMModel: (model) => set({ llmModel: model }),
   setGithubToken: (token) => set({ githubToken: token }),
-  setNvdKey: (key) => set({ nvdKey: key }),
   setIncludeTransitive: (include) => set({ includeTransitive: include }),
   setVerboseThreatModel: (verbose) => set({ verboseThreatModel: verbose }),
   setTimezone: (tz) => set({ timezone: tz }),

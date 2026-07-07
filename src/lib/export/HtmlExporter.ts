@@ -559,8 +559,20 @@ function renderRepositoryAttribution(data: Partial<PackageAnalysisData>): string
     confidenceHtml = `<span style="display:inline-block;${style};font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:4px;margin-bottom:6px" title="Source Resolution Confidence">Source Confidence: ${esc(label)}</span>`;
   }
 
+  // Sub-path indicator
+  const subPathHtml = data.resolvedGithubSubPath
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+    <span style="display:inline-block;background:rgba(99,102,241,.15);color:#a5b4fc;border:1px solid rgba(99,102,241,.3);font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:2px 7px;border-radius:4px">📁 Sub-path scan</span>
+    <code style="font-family:var(--font-mono);font-size:.78rem;color:var(--indigo-light)">${esc(data.resolvedGithubSubPath)}</code>
+  </div>
+  <div style="font-size:.72rem;color:var(--dim);margin-bottom:8px">
+    ⓘ Security findings, STRIDE model, and code review are scoped to this path only. Stars, forks, and version metadata are from the base repository.
+  </div>`
+    : '';
+
   return `<div style="margin-bottom:16px">
   ${confidenceHtml}
+  ${subPathHtml}
   ${data.resolvedGithubUrl ? `<div class="repo-attribution" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
     <span>🔗 Repository:</span>
     <a href="${esc(data.resolvedGithubUrl)}" target="_blank" style="font-family:var(--font-mono)">${esc(repoDisplay)}</a>
@@ -976,6 +988,9 @@ export class HtmlExporter {
             VERIFIED: '✓ VERIFIED', HIGH: '↑ HIGH', MEDIUM: '~ MEDIUM', LOW: '↓ LOW', UNRESOLVED: '? UNRESOLVED',
           };
           md += `**Source Confidence:** ${confLabels[r.resolverConfidence] || r.resolverConfidence}  \n`;
+        }
+        if (r.resolvedGithubSubPath) {
+          md += `**Sub-path scan:** \`${r.resolvedGithubSubPath}\` *(findings scoped to this path; repo metadata from base repo)*  \n`;
         }
         if (r.resolvedGithubUrl) {
           md += `**Repository:** [${r.resolvedGithubUrl.replace('https://github.com/', '')}](${r.resolvedGithubUrl})${r.resolvedVia ? ` *(via ${r.resolvedVia.replace(/_/g, ' ')})*` : ''}  \n`;

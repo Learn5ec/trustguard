@@ -31,6 +31,8 @@ export interface PackageAnalysisData {
   resolvedRegistryUrl?: string;       // The registry API URL contacted (or attempted)
   resolvedGitRef?: string;            // Confirmed git tag used for source fetch (e.g. "v0.111.0" or "0.111.0")
   resolverConfidence?: ResolverConfidence; // How reliably was the GitHub URL resolved
+  /** When set, only this sub-directory/path within the repo was fetched for code review */
+  resolvedGithubSubPath?: string;
   /** How complete the data is — FULL means all APIs responded */
   dataCompleteness?: 'FULL' | 'PARTIAL' | 'METADATA_ONLY' | 'NONE';
   /** When the current version was first published on the registry (e.g. PyPI upload_time) */

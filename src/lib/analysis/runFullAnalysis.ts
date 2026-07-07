@@ -57,9 +57,13 @@ export async function runFullAnalysis(
     llmModel: string;
     apiKey: string;
     onStatus?: (msg: string) => void;
+    /** Sub-directory or file path within the repo to scope the source review to */
+    subPath?: string;
+    /** Branch/ref hint extracted from the GitHub tree/blob URL */
+    gitBranch?: string;
   }
 ): Promise<FullAnalysisResult> {
-  const { llmProvider, llmModel, apiKey, onStatus } = options;
+  const { llmProvider, llmModel, apiKey, onStatus, subPath, gitBranch } = options;
   const statusMessages: string[] = [];
   const log = (msg: string) => { statusMessages.push(msg); onStatus?.(msg); };
 
@@ -73,13 +77,17 @@ export async function runFullAnalysis(
   try {
     fetchedData = await analyzePackage(packageName, version, ecosystem);
 
+    // Propagate sub-path so exports and UI can surface it
+    if (subPath) fetchedData.resolvedGithubSubPath = subPath;
+
     // Source code: use resolvedGithubUrl if available (set by registry lookup)
     const effectiveGithubUrl = fetchedData.resolvedGithubUrl || fetchedData.github?.url;
 
     if (effectiveGithubUrl && (fetchedData.ecosystem === 'github' || fetchedData.resolvedVia === 'registry_lookup' || fetchedData.resolvedVia === 'direct_url')) {
       const resolvedVersion = fetchedData.version && fetchedData.version !== 'latest' ? fetchedData.version : undefined;
-      log(`Fetching source code (GitHub)${resolvedVersion ? ` at tag for v${resolvedVersion}` : ''}...`);
-      const sourceResult = await fetchGitHubRepoSourceChunks(effectiveGithubUrl, resolvedVersion);
+      const subPathNote = subPath ? ` (sub-path: ${subPath})` : '';
+      log(`Fetching source code (GitHub)${subPathNote}${resolvedVersion ? ` at tag for v${resolvedVersion}` : ''}...`);
+      const sourceResult = await fetchGitHubRepoSourceChunks(effectiveGithubUrl, resolvedVersion, subPath, gitBranch);
       sourceChunks = sourceResult?.chunks ?? null;
       if (sourceResult?.resolvedRef) fetchedData.resolvedGitRef = sourceResult.resolvedRef;
       if (sourceChunks?.length) {

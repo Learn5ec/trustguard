@@ -95,7 +95,6 @@ export const useBatchStore = create<BatchState>((set, get) => ({
       await Promise.all(batch.map(async (item) => {
         try {
           if (apiKey) {
-            console.log("looking_for_batch-1", item.version)
             // Full pipeline: same agents/tools as single-package analysis
             const result = await runFullAnalysis(
               item.name,
@@ -184,7 +183,6 @@ export const useBatchStore = create<BatchState>((set, get) => ({
           set({ items: [...items] });
 
           try {
-            console.log("looking_for_batch-2", item.version)
             const result = await runFullAnalysis(
               item.name,
               item.version,

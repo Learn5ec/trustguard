@@ -241,7 +241,6 @@ async function lookupPypi(
   }
   const data = await resp.json();
   const info = data.info || {};
-  console.log("REGISTRY_BASES response", endpoint, data, info);
 
   // Extract GitHub URL from various fields
   const candidates: (string | null | undefined)[] = [

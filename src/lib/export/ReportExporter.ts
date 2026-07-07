@@ -46,6 +46,10 @@ export class ReportExporter {
         };
         md += `**Source Confidence:** ${confLabels[data.resolverConfidence] || data.resolverConfidence}  \n`;
       }
+      if (data.resolvedGithubSubPath) {
+        md += `**Sub-path scan:** \`${data.resolvedGithubSubPath}\`  \n`;
+        md += `> ⓘ Security findings, STRIDE model, and code review are scoped to this sub-path only. Stars, forks, version metadata, and trust/risk scores are from the base repository.\n\n`;
+      }
       if (data.resolvedGithubUrl) {
         md += `**Repository:** [${data.resolvedGithubUrl}](${data.resolvedGithubUrl})  \n`;
         if (data.resolvedVia) md += `**Resolved via:** ${data.resolvedVia.replace(/_/g, ' ')}  \n`;

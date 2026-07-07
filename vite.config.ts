@@ -114,47 +114,104 @@ async function fetchModelsFromProvider(provider: string, apiKey: string): Promis
   return [];
 }
 
+// Known valid provider IDs — reject anything outside this list
+const KNOWN_PROVIDERS = new Set([
+  'openai', 'anthropic', 'mistral', 'zhipu', 'zai', 'groq', 'together', 'gemini', 'ollama'
+]);
+
+// Max POST body size for /api/models (1 KB is plenty for provider + key)
+const MAX_BODY_BYTES = 1024;
+
+// Allowed request origins for the dev proxy
+const ALLOWED_ORIGINS = new Set([
+  'http://192.168.7.109:23232',
+  'http://localhost:23232',
+]);
+
 function modelsProxyPlugin(): Plugin {
   const middleware = async (req: any, res: any, next: any) => {
-    if (req.url && req.url.startsWith('/api/models')) {
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    if (!(req.url && req.url.startsWith('/api/models'))) {
+      next();
+      return;
+    }
 
-      if (req.method === 'OPTIONS') {
-        res.statusCode = 200;
-        res.end();
+    // ── Origin check — only accept requests from the dev server itself ────────
+    const origin = req.headers['origin'] || '';
+    if (origin && !ALLOWED_ORIGINS.has(origin)) {
+      res.statusCode = 403;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Forbidden: origin not allowed' }));
+      return;
+    }
+
+    // ── CORS headers — restrict to the actual origin, not wildcard ────────────
+    const responseOrigin = ALLOWED_ORIGINS.has(origin) ? origin : 'http://192.168.7.109:23232';
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', responseOrigin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 200;
+      res.end();
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+      return;
+    }
+
+    // ── Read body with hard size limit ────────────────────────────────────────
+    let body = '';
+    let bodyBytes = 0;
+    let aborted = false;
+
+    await new Promise<void>((resolve) => {
+      req.on('data', (chunk: Buffer) => {
+        bodyBytes += chunk.length;
+        if (bodyBytes > MAX_BODY_BYTES) {
+          aborted = true;
+          res.statusCode = 413;
+          res.end(JSON.stringify({ error: 'Request body too large' }));
+          resolve();
+          return;
+        }
+        body += chunk.toString();
+      });
+      req.on('end', resolve);
+    });
+
+    if (aborted) return;
+
+    try {
+      const parsed = JSON.parse(body);
+      const { provider, apiKey } = parsed;
+
+      // ── Provider whitelist ────────────────────────────────────────────────
+      if (!provider || typeof provider !== 'string' || !KNOWN_PROVIDERS.has(provider)) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Invalid or missing provider' }));
         return;
       }
-      
-      if (req.method === 'POST') {
-        let body = '';
-        req.on('data', (chunk: any) => {
-          body += chunk;
-        });
-        req.on('end', async () => {
-          try {
-            const { provider, apiKey } = JSON.parse(body);
-            if (!provider) {
-              res.statusCode = 400;
-              res.end(JSON.stringify({ error: 'Missing provider' }));
-              return;
-            }
-            const models = await fetchModelsFromProvider(provider, apiKey);
-            res.statusCode = 200;
-            res.end(JSON.stringify({ models }));
-          } catch (err: any) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: err.message || 'Failed to fetch models' }));
-          }
-        });
-      } else {
-        res.statusCode = 405;
-        res.end(JSON.stringify({ error: 'Method not allowed' }));
+
+      // ── Ollama SSRF guard — only allow if explicitly enabled ──────────────
+      if (provider === 'ollama' && process.env.TRUSTGUARD_OLLAMA_ENABLED !== 'true') {
+        // Ollama model list is handled client-side; do not proxy localhost fetch
+        res.statusCode = 200;
+        res.end(JSON.stringify({ models: [] }));
+        return;
       }
-    } else {
-      next();
+
+      const models = await fetchModelsFromProvider(provider, apiKey);
+      res.statusCode = 200;
+      res.end(JSON.stringify({ models }));
+    } catch (err: any) {
+      console.error('[models-proxy] error:', err.message);
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: 'Failed to fetch models' }));
     }
   };
 
@@ -168,6 +225,20 @@ function modelsProxyPlugin(): Plugin {
     }
   };
 }
+
+// Content Security Policy — tightly scoped to known origins only
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",   // 'unsafe-inline' required by Vite HMR in dev
+  "style-src 'self' 'unsafe-inline'",
+  "connect-src 'self' https://*.openai.com https://*.anthropic.com https://*.mistral.ai https://api.groq.com https://api.together.xyz https://api.z.ai https://open.bigmodel.cn https://generativelanguage.googleapis.com https://api.github.com https://registry.npmjs.org https://pypi.org https://crates.io https://pub.dev https://rubygems.org https://api.nuget.org https://hex.pm https://packagist.org https://search.maven.org https://repo1.maven.org https://api.osv.dev",
+  "img-src 'self' https://*.githubusercontent.com data: blob:",
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -183,8 +254,11 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: ['eastbound-unkempt-regulate.ngrok-free.dev'],
     headers: {
+      'Content-Security-Policy': CSP,
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     }
   }
 })

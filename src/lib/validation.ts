@@ -7,9 +7,25 @@ export interface ValidationResult {
   type?: Ecosystem | 'github';
   value?: string;
   version?: string;
+  /** Sub-directory or file path within a GitHub repo (from /tree/branch/path URLs) */
+  subPath?: string;
+  /** Branch or ref extracted from a GitHub /tree/ or /blob/ URL */
+  gitBranch?: string;
 }
 
-const GITHUB_URL_REGEX = /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+\/?$/;
+/**
+ * Parses any GitHub URL form:
+ *   https://github.com/owner/repo
+ *   https://github.com/owner/repo.git
+ *   https://github.com/owner/repo/tree/branch
+ *   https://github.com/owner/repo/tree/branch/path/to/subdir
+ *   https://github.com/owner/repo/blob/branch/path/to/file.ts
+ *
+ * Captures: owner, repo, (optional) tree|blob, (optional) branch, (optional) subPath
+ */
+const GITHUB_PARSE_REGEX =
+  /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?(?:\/(tree|blob)\/([^/?#\s]+)(?:\/([^?#\s]+?))?)?(?:\/)?$/i;
+
 const MAX_INPUT_LENGTH = 500;
 
 const ECOSYSTEM_PREFIXES: Record<string, Ecosystem> = {
@@ -32,11 +48,21 @@ export function validatePackageInput(input: string): ValidationResult {
 
   // Handle GitHub URLs first
   if (trimmed.startsWith('https://github.com/')) {
-    // Strip .git suffix before validation
-    const cleaned = trimmed.replace(/\.git$/, '').replace(/\/$/, '');
-    return GITHUB_URL_REGEX.test(cleaned)
-      ? { valid: true, type: 'github', value: cleaned }
-      : { valid: false, error: 'Invalid GitHub URL format. Expected: https://github.com/owner/repo' };
+    const m = GITHUB_PARSE_REGEX.exec(trimmed);
+    if (!m) {
+      return {
+        valid: false,
+        error: 'Invalid GitHub URL. Accepted formats:\n  • https://github.com/owner/repo\n  • https://github.com/owner/repo/tree/branch/path',
+      };
+    }
+    const [, owner, repo, , branch, subPath] = m;
+    return {
+      valid: true,
+      type: 'github',
+      value: `https://github.com/${owner}/${repo}`,   // always base repo URL
+      subPath:   subPath  || undefined,
+      gitBranch: branch   || undefined,
+    };
   }
 
   // Sanitise: strip any HTML/script injection attempts

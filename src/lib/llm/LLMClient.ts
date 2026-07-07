@@ -39,7 +39,9 @@ export class LLMClient {
 
     let url = provider.baseUrl;
     if (providerId === 'gemini') {
-      url = `${provider.baseUrl}/${model}:streamGenerateContent?key=${apiKey}`;
+      // Key is passed via x-goog-api-key header (set in buildHeaders above),
+      // NOT appended to the URL — keeps it out of server logs and browser history.
+      url = `${provider.baseUrl}/${model}:streamGenerateContent`;
     }
 
     const response = await fetch(url, {

@@ -281,7 +281,12 @@ async function resolveVersionRef(
  * @returns SourceChunkResult containing the chunks and the resolved git ref (tag),
  *   or null if the repo could not be fetched.
  */
-export async function fetchGitHubRepoSourceChunks(url: string, version?: string): Promise<SourceChunkResult | null> {
+export async function fetchGitHubRepoSourceChunks(
+  url: string,
+  version?: string,
+  subPath?: string,
+  gitBranch?: string,
+): Promise<SourceChunkResult | null> {
   const token = useSettingsStore.getState().githubToken;
 
   const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
@@ -292,6 +297,94 @@ export async function fetchGitHubRepoSourceChunks(url: string, version?: string)
   const headers: Record<string, string> = { 'Accept': 'application/vnd.github.v3+json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
+  // ── SUB-PATH MODE ───────────────────────────────────────────────────────────
+  // When the user supplied a /tree/branch/path or /blob/branch/file URL,
+  // fetch ONLY that sub-directory or file — not the entire repo root.
+  if (subPath) {
+    // Prefer the branch from the URL; fall back to version-based tag resolution
+    const ref = gitBranch || await resolveVersionRef(owner, cleanRepo, version, headers);
+    const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${cleanRepo}/contents/${subPath}${refQuery}`,
+        { headers }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+
+      // ── Case A: single file (blob URL) ──────────────────────────────────────
+      if (!Array.isArray(data) && data?.type === 'file' && data?.download_url) {
+        let fileContent = await fetch(data.download_url, { headers }).then(r => r.text());
+        if (fileContent.length > MAX_TOTAL_CHARS) {
+          fileContent = fileContent.substring(0, MAX_TOTAL_CHARS) + '\n// ... [TRUNCATED]';
+        }
+        return {
+          chunks: [{
+            label: `${owner}/${cleanRepo} @ ${subPath}`,
+            content: `--- FILE: ${data.path || subPath} ---\n${fileContent}`,
+          }],
+          resolvedRef: ref,
+        };
+      }
+
+      // ── Case B: directory ────────────────────────────────────────────────────
+      if (Array.isArray(data)) {
+        const contents: GHFile[] = data;
+
+        // Read manifest scripts from this sub-directory if it has a package.json
+        let pkgScripts: Record<string, string> = {};
+        const pkgFile = contents.find(f => f.name === 'package.json' && f.download_url);
+        if (pkgFile) {
+          try {
+            const pkg = await fetch(pkgFile.download_url, { headers }).then(r => r.json());
+            pkgScripts = pkg.scripts || {};
+          } catch { /* ignore */ }
+        }
+
+        // Also peek into a src/ sub-directory inside the sub-path (common pattern)
+        let srcContents: GHFile[] = [];
+        const srcDir = contents.find(f => f.type === 'dir' && f.name === 'src');
+        if (srcDir) {
+          try {
+            const srcRes = await fetch(
+              `https://api.github.com/repos/${owner}/${cleanRepo}/contents/${subPath}/src${refQuery}`,
+              { headers }
+            );
+            if (srcRes.ok) {
+              const srcData = await srcRes.json();
+              if (Array.isArray(srcData)) {
+                srcContents = srcData.map((f: GHFile) => ({
+                  ...f,
+                  path: f.path || `${subPath}/src/${f.name}`,
+                }));
+              }
+            }
+          } catch { /* ignore */ }
+        }
+
+        const combinedContents = [...contents, ...srcContents];
+        const includedPaths = new Set<string>();
+        const files = selectPriorityFiles(combinedContents, includedPaths, null).slice(0, 8);
+        if (files.length === 0) return null;
+
+        const { content } = await fetchAndBuildContent(files, headers, pkgScripts, MAX_TOTAL_CHARS);
+        if (!content) return null;
+
+        return {
+          chunks: [{ label: `${owner}/${cleanRepo} @ ${subPath}`, content }],
+          resolvedRef: ref,
+        };
+      }
+
+      return null;
+    } catch (err) {
+      console.error('Failed to fetch GitHub sub-path source', err);
+      return null;
+    }
+  }
+
+  // ── FULL REPO MODE (original behaviour) ─────────────────────────────────────
   // Resolve the correct ref for this version (if any)
   const ref = await resolveVersionRef(owner, cleanRepo, version, headers);
   const refQuery = ref ? `?ref=${encodeURIComponent(ref)}` : '';

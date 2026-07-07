@@ -44,7 +44,7 @@ interface AnalysisState {
   needsApiKey: boolean;
   analysisProgress: AnalysisProgress | null;
 
-  startAnalysis: (packageName: string, version: string, ecosystem: string) => Promise<void>;
+  startAnalysis: (packageName: string, version: string, ecosystem: string, subPath?: string, gitBranch?: string) => Promise<void>;
   addStatusMessage: (msg: string) => void;
   reset: () => void;
 }
@@ -74,7 +74,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
 
   addStatusMessage: (msg) => set((state) => ({ statusMessages: [...state.statusMessages, msg] })),
 
-  startAnalysis: async (packageName, version, ecosystem) => {
+  startAnalysis: async (packageName, version, ecosystem, subPath, gitBranch) => {
     const settings = useSettingsStore.getState();
     const apiKey = settings.llmProvider === 'ollama' ? 'local' : LLMKeyManager.get(settings.llmProvider);
 
@@ -117,12 +117,17 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
     try {
       fetchedData = await analyzePackage(packageName, version, ecosystem as Ecosystem);
 
+      // Propagate sub-path into fetched data so UI and exports can show it
+      if (subPath) fetchedData.resolvedGithubSubPath = subPath;
+
       // ── Source code fetching ────────────────────────────────────────────────
       if ((fetchedData.ecosystem === 'github' || fetchedData.resolvedVia === 'registry_lookup') && (fetchedData.resolvedGithubUrl || fetchedData.github?.url)) {
         const effectiveUrl = fetchedData.resolvedGithubUrl || fetchedData.github?.url;
         const resolvedVersion = fetchedData.version && fetchedData.version !== 'latest' ? fetchedData.version : undefined;
-        get().addStatusMessage(`Fetching source code for Secure Code Review Agent${resolvedVersion ? ` (version ${resolvedVersion})` : ''}...`);
-        const sourceResult = await fetchGitHubRepoSourceChunks(effectiveUrl!, resolvedVersion);
+        const subPathNote = subPath ? ` (sub-path: ${subPath})` : '';
+        const versionNote = resolvedVersion ? ` at tag v${resolvedVersion}` : '';
+        get().addStatusMessage(`Fetching source code for Secure Code Review Agent${subPathNote}${versionNote}...`);
+        const sourceResult = await fetchGitHubRepoSourceChunks(effectiveUrl!, resolvedVersion, subPath, gitBranch);
         sourceChunks = sourceResult?.chunks ?? null;
         if (sourceResult?.resolvedRef) fetchedData.resolvedGitRef = sourceResult.resolvedRef;
 

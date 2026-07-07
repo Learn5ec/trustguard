@@ -173,6 +173,18 @@ export function ReportContainer({ data, report, isLoading, llmStream, statusMess
                     </span>
                   );
                 })()}
+                {/* Sub-path indicator — shown when only a sub-directory was scanned */}
+                {data.resolvedGithubSubPath && (
+                  <div className="flex flex-col gap-0.5 mb-1">
+                    <div className="flex items-center gap-1.5 text-xs bg-indigo-950/30 text-indigo-300 border border-indigo-800/40 px-2 py-0.5 rounded w-fit">
+                      <span>📁</span>
+                      <span className="font-mono">Sub-path scan: {data.resolvedGithubSubPath}</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-600 pl-0.5">
+                      Security findings, STRIDE, and code review are scoped to this path only. Stars, forks, and version metadata are from the base repository.
+                    </p>
+                  </div>
+                )}
                 {/* GitHub repo link */}
                 {data.resolvedGithubUrl && (
                   <a

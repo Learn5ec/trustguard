@@ -61,7 +61,7 @@ export function SearchBar() {
       ? 'github'
       : selectedEcosystem || (result.type as string);
 
-    startAnalysis(result.value!, result.version || 'latest', ecosystem);
+    startAnalysis(result.value!, result.version || 'latest', ecosystem, result.subPath, result.gitBranch);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -337,6 +337,16 @@ export function TrustGuardPdfDocument({ data, report, tokenUsage, timezone = 'IS
                 </Text>
               );
             })()}
+            {data.resolvedGithubSubPath && (
+              <View style={{ marginBottom: 4 }}>
+                <Text style={[s.attrValue, { color: '#a5b4fc', fontWeight: 'bold' }]}>
+                  {'📁 Sub-path scan: '}{data.resolvedGithubSubPath}
+                </Text>
+                <Text style={[s.attrMuted, { marginTop: 1 }]}>
+                  Findings scoped to this path. Stars, forks, and scores from base repo.
+                </Text>
+              </View>
+            )}
             {data.resolvedGithubUrl && (
               <Text style={s.attrValue}>
                 {'Repository: '}{data.resolvedGithubUrl}

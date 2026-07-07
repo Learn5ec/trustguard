@@ -7,8 +7,11 @@ export const geminiProvider: LLMProvider = {
   models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash-exp'],
   supportsStreaming: true,
 
-  buildHeaders: () => ({
-    'Content-Type': 'application/json'
+  buildHeaders: (apiKey?: string) => ({
+    'Content-Type': 'application/json',
+    // Use header instead of URL query string to keep the key out of server
+    // logs, browser history, and Referer headers.
+    ...(apiKey ? { 'x-goog-api-key': apiKey } : {}),
   }),
 
   buildBody: (messages: ChatMessage[], _model: string, _stream: boolean) => {
