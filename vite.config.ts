@@ -126,6 +126,9 @@ const MAX_BODY_BYTES = 1024;
 const ALLOWED_ORIGINS = new Set([
   'http://192.168.7.109:23232',
   'http://localhost:23232',
+  'http://localhost:5173',
+  'https://eastbound-unkempt-regulate.ngrok-free.dev',
+  'http://eastbound-unkempt-regulate.ngrok-free.dev',
 ]);
 
 function modelsProxyPlugin(): Plugin {
